@@ -21,8 +21,9 @@ import "io"
 // SkaffoldOptions are options that are set by command line arguments not included
 // in the config file itself
 type SkaffoldOptions struct {
-	DevMode      bool
-	Notification bool
-	CustomTag    string
-	Output       io.Writer
+	DevMode        bool
+	Notification   bool
+	CustomTag      string
+	ConfigFilename string
+	Output         io.Writer
 }

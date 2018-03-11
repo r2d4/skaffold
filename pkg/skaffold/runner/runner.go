@@ -18,6 +18,7 @@ package runner
 
 import (
 	"fmt"
+	"io/ioutil"
 
 	"github.com/GoogleCloudPlatform/skaffold/pkg/skaffold/build"
 	"github.com/GoogleCloudPlatform/skaffold/pkg/skaffold/build/tag"
@@ -29,6 +30,7 @@ import (
 	clientgo "k8s.io/client-go/kubernetes"
 
 	"github.com/pkg/errors"
+	"github.com/rjeczalik/notify"
 	"github.com/sirupsen/logrus"
 )
 
@@ -143,6 +145,21 @@ func (r *SkaffoldRunner) dev() error {
 		logrus.Warnf("run: %s", err)
 	}
 	for {
+		configCh := make(chan notify.EventInfo)
+		go func() {
+			r.WatchFile("", r.opts.ConfigFilename, configCh)
+			<-r.configCh
+			r.cancel <- struct{}{}
+			fmt.Fprintf(r.opts.Output, "Reloading skaffold config file %s", r.opts.ConfigFilename)
+			cfg, err := ioutil.ReadFile(r.opts.ConfigFilename)
+			if err != nil {
+				return errors.Wrap(err, "reading changed config file")
+			}
+			r.config, err = config.Parse(cfg, config.DefaultDevSkaffoldConfig)
+			if err != nil {
+				return errors.Wrap(err, "parsing changed config file")
+			}
+		}()
 		if bRes != nil {
 			for _, b := range bRes.Builds {
 				tag := b.Tag
@@ -161,6 +178,7 @@ func (r *SkaffoldRunner) dev() error {
 			// In dev mode, we only warn on pipeline errors
 			logrus.Warnf("run: %s", err)
 		}
+
 	}
 }
 

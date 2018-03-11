@@ -37,6 +37,8 @@ type Watcher interface {
 	// Watch watches a set of artifacts for changes, and on the first change
 	// returns a reference to the changed artifact
 	Watch(artifacts []*config.Artifact, ready chan *Event, cancel chan struct{}) (*Event, error)
+
+	WatchFile(workspace, path string, c chan notify.EventInfo) error
 }
 
 // Event is sent on any inotify event and returns all artifacts which
@@ -78,7 +80,7 @@ func (f *FSWatcher) Watch(artifacts []*config.Artifact, ready chan *Event, cance
 		if err := addDepsForArtifact(a, depsToArtifact); err != nil {
 			return nil, errors.Wrap(err, "adding deps for artifact")
 		}
-		if err := addWatchForDeps(depsToArtifact, c); err != nil {
+		if err := f.addWatchForDeps(depsToArtifact, c); err != nil {
 			return nil, errors.Wrap(err, "adding watching for deps")
 		}
 	}
@@ -140,12 +142,12 @@ func addDepsForArtifact(a *config.Artifact, depsToArtifact map[string][]*config.
 	return nil
 }
 
-func addWatchForDeps(depsToArtifact map[string][]*config.Artifact, c chan notify.EventInfo) error {
+func (f *FSWatcher) addWatchForDeps(depsToArtifact map[string][]*config.Artifact, c chan notify.EventInfo) error {
 	// It is a purely aesthetic choice to start the watches in sorted order
 	sortedDeps := getKeySlice(depsToArtifact)
 	for _, dep := range sortedDeps {
 		a := depsToArtifact[dep]
-		if err := watchFile(a[0].Workspace, dep, c); err != nil {
+		if err := f.WatchFile(a[0].Workspace, dep, c); err != nil {
 			return errors.Wrapf(err, "starting watch on file %s", dep)
 		}
 	}
@@ -161,7 +163,7 @@ func getKeySlice(m map[string][]*config.Artifact) []string {
 	return r
 }
 
-func watchFile(workspace, path string, c chan notify.EventInfo) error {
+func (*FSWatcher) WatchFile(workspace, path string, c chan notify.EventInfo) error {
 	for _, ig := range ignoredPrefixes {
 		absPath, err := filepath.Abs(filepath.Join(workspace, ig))
 		if err != nil {

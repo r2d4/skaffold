@@ -94,6 +94,8 @@ func runSkaffold(out io.Writer, dev bool, filename string) error {
 
 	opts.Output = out
 	opts.DevMode = dev
+	opts.ConfigFilename = configFile(filename)
+
 	r, err := runner.NewForConfig(opts, cfg)
 	if err != nil {
 		return errors.Wrap(err, "getting skaffold config")
@@ -117,6 +119,14 @@ func readConfiguration(filename string) ([]byte, error) {
 	default:
 		return ioutil.ReadFile(filename)
 	}
+}
+
+func configFile(filename string) string {
+	fi, err := os.Stat(filename)
+	if err != nil && !fi.IsDir() {
+		return filename
+	}
+	return ""
 }
 
 func download(url string) ([]byte, error) {
