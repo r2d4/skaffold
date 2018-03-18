@@ -2,7 +2,7 @@ apiVersion: skaffold/v1alpha1
 kind: Config
 build:
   artifacts:
-  - imageName: gcr.io/k8s-skaffold/skaffold-example
+  - imageName: gcr.io/r2d4minikube/skaffold-example
     workspace: .
   local: {}
 deploy:
@@ -11,4 +11,4 @@ deploy:
     - paths:
       - k8s-*
       parameters:
-        IMAGE_NAME: gcr.io/k8s-skaffold/skaffold-example
+        IMAGE_NAME: gcr.io/r2d4minikube/skaffold-example

@@ -27,6 +27,9 @@ PROJECT := skaffold
 REPOPATH ?= $(ORG)/$(PROJECT)
 RELEASE_BUCKET ?= $(PROJECT)
 
+INTEGRATION_CLOUDSDK_COMPUTE_ZONE ?= us-central1-a
+INTEGRATION_CONTAINER_CLUSTER ?= gke-dev
+
 SUPPORTED_PLATFORMS := linux-$(GOARCH) darwin-$(GOARCH) windows-$(GOARCH).exe
 BUILD_PACKAGE = $(REPOPATH)/cmd/skaffold
 
@@ -73,6 +76,21 @@ install: $(GO_FILES) $(BUILD_DIR)
 .PHONY: integration
 integration: $(BUILD_DIR)/$(PROJECT)
 	go test -v -tags integration $(REPOPATH)/integration -timeout 10m
+
+$(BUILD_DIR)/integration-test-context.tar.gz: install $(skaffold docker deps -f deploy/skaffold/Dockerfile.integration)
+	skaffold docker context -c deploy/skaffold -f deploy/skaffold/Dockerfile.integration -o $@
+
+.PHONY: docker
+docker: $(BUILD_DIR)/integration-test-context.tar.gz
+	docker build -f Dockerfile.integration -t skaffold-integration - < $(BUILD_DIR)/integration-test-context.tar.gz 
+	docker run \
+        -v $(PWD):/go/src/$(REPOPATH) \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v $(HOME)/.config/gcloud:/root/.config/gcloud \
+        -it \
+        -e CLOUDSDK_COMPUTE_ZONE=$(INTEGRATION_CLOUDSDK_COMPUTE_ZONE) \
+        -e CLOUDSDK_CONTAINER_CLUSTER=$(INTEGRATION_CONTAINER_CLUSTER) \
+        skaffold-integration /bin/bash
 
 .PHONY: release
 release: cross
