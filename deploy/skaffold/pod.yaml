@@ -7,4 +7,12 @@ spec:
   - name: skaffold
     image: IMAGE_NAME
     command: ["/bin/bash", "-c", "--" ]
+    volumeMounts:
+    - mountPath: /var/run/docker.sock
+      name: docker-sock
     args: ["while true; do sleep 30; done;"]
+  volumes:
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
+    

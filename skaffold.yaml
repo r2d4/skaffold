@@ -2,8 +2,7 @@ apiVersion: skaffold/v1alpha1
 kind: Config
 build:
   artifacts:
-  - imageName: gcr.io/k8s-skaffold/skaffold
-    dockerfilePath: deploy/skaffold/Dockerfile
+  - imageName: gcr.io/r2d4minikube/skaffold
     workspace: .
   local: {}
 deploy:
@@ -12,4 +11,4 @@ deploy:
     - paths:
       - deploy/skaffold/*
       parameters:
-        IMAGE_NAME: gcr.io/k8s-skaffold/skaffold
+        IMAGE_NAME: gcr.io/r2d4minikube/skaffold
