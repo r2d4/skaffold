@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # If there is no current context, get one.
 if [[ $(kubectl config current-context 2> /dev/null) == "" ]]; then
@@ -22,5 +23,6 @@ EOF
     gcloud container clusters get-credentials --project="$project" --zone="$zone" "$cluster" || exit
 fi
 
-echo "Running: kubectl $@"
-kubectl "$@"
+
+echo "Running: skaffold $@"
+/usr/bin/skaffold "$@"

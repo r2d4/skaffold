@@ -1,0 +1,11 @@
+apiVersion: skaffold/v1alpha1
+kind: Config
+build:
+  artifacts:
+  - imageName: gcr.io/r2d4minikube/skaffold-integration
+    dockerfilePath: deploy/skaffold/Dockerfile.integration
+    workspace: .
+  local:
+    skipPush: false
+deploy:
+  kubectl: {}

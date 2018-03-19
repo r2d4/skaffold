@@ -32,7 +32,7 @@ func TestRunNoArgs(t *testing.T) {
 		t.Fatalf("Test setup error: getting kubernetes client: %s", err)
 	}
 	defer func() {
-		if err := client.CoreV1().Pods("default").Delete("skaffold", nil); err != nil {
+		if err := client.CoreV1().Pods("default").Delete("getting-started", nil); err != nil {
 			t.Fatalf("Error deleting pod %s", err)
 		}
 	}()
@@ -43,7 +43,7 @@ func TestRunNoArgs(t *testing.T) {
 		t.Fatalf("skaffold run: \nstdout: %s\nstderr: %s\nerror: %s", out, outerr, err)
 	}
 
-	if err := kubernetes.WaitForPodReady(client.CoreV1().Pods("default"), "skaffold"); err != nil {
+	if err := kubernetes.WaitForPodReady(client.CoreV1().Pods("default"), "getting-started"); err != nil {
 		t.Fatalf("Timed out waiting for pod ready")
 	}
 }

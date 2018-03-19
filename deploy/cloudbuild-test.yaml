@@ -1,0 +1,7 @@
+steps:
+  - name: 'gcr.io/r2d4minikube/skaffold-integration'
+    dir: /workspace/examples/getting-started
+    args: ['run', '--tag', 'test']
+    env:
+    - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+    - 'CLOUDSDK_CONTAINER_CLUSTER=gke-dev'

@@ -75,16 +75,15 @@ install: $(GO_FILES) $(BUILD_DIR)
 
 .PHONY: integration
 integration: $(BUILD_DIR)/$(PROJECT)
-	go test -v -tags integration $(REPOPATH)/integration -timeout 10m
+	go test -v -tags integration $(REPOPATH)/integration -timeout 10m -provider=$(PROVIDER) -gke-compute-zone=$(GKE_COMPUTE_ZONE) -gcp-project=$(GCP_PROJECT) -gke-cluster-context=$(GKE_CLUSTER_CONTEXT)
 
-$(BUILD_DIR)/integration-test-context.tar.gz: install $(skaffold docker deps -f deploy/skaffold/Dockerfile.integration)
-	skaffold docker context -c deploy/skaffold -f deploy/skaffold/Dockerfile.integration -o $@
+$(BUILD_DIR)/test-context.tar.gz: $(skaffold docker deps -f deploy/skaffold/Dockerfile.integration)
+	tar -zcvf out/test-context.tar.gz .
 
 .PHONY: docker
-docker: $(BUILD_DIR)/integration-test-context.tar.gz
-	docker build -f Dockerfile.integration -t skaffold-integration - < $(BUILD_DIR)/integration-test-context.tar.gz 
+docker: $(BUILD_DIR)/test-context.tar.gz
+	docker build -f deploy/skaffold/Dockerfile.integration -t gcr.io/r2d4minikube/skaffold-integration - < $(BUILD_DIR)/test-context.tar.gz 
 	docker run \
-        -v $(PWD):/go/src/$(REPOPATH) \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v $(HOME)/.config/gcloud:/root/.config/gcloud \
         -it \

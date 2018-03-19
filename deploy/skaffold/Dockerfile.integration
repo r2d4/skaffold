@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+FROM golang:1.10 as build
+WORKDIR /go/src/github.com/GoogleCloudPlatform/skaffold
+COPY . .
+RUN make install
+
 FROM gcr.io/gcp-runtimes/ubuntu_16_0_4
 
 RUN apt-get -y update && \
@@ -36,8 +41,6 @@ RUN curl -LO https://storage.googleapis.com/kubernetes-helm/helm-${HELM_VERSION}
     mv linux-amd64/helm /usr/local/bin/helm && \
     rm helm-${HELM_VERSION}-linux-amd64.tar.gz
 
-COPY --from=golang:1.10 /usr/local/go /usr/local/go
-
 ENV CLOUD_SDK_VERSION 193.0.0
 RUN easy_install -U pip && \
     pip install -U crcmod && \
@@ -57,9 +60,8 @@ RUN curl -LO https://github.com/GoogleCloudPlatform/docker-credential-gcr/releas
     docker-credential-gcr configure-docker
 
 ENV PATH /usr/local/go/bin:/go/bin:/google-cloud-sdk/bin:$PATH
-ENV GOPATH=/go
 
-WORKDIR /go/src/github.com/GoogleCloudPlatform/skaffold
+COPY --from=build /go/bin/skaffold /usr/bin/skaffold
+COPY deploy/skaffold/skaffold.bash /builder/skaffold.bash
 
-COPY entrypoint.bash /entrypoint.bash
-ENTRYPOINT ["/entrypoint.bash"]
+ENTRYPOINT ["/builder/skaffold.bash"]
