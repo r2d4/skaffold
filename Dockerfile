@@ -31,10 +31,6 @@ COPY --from=golang:1.10 /usr/local/go /usr/local/go
 ENV PATH /usr/local/go/bin:/go/bin:$PATH
 ENV GOPATH /go/
 
-WORKDIR /go/src/github.com/GoogleCloudPlatform/skaffold
-COPY . .
-RUN make install
-
 ENV KUBECTL_VERSION v1.9.3
 RUN curl -Lo /usr/local/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl  && \
     chmod +x /usr/local/bin/kubectl
@@ -64,5 +60,8 @@ RUN curl -LO https://github.com/GoogleCloudPlatform/docker-credential-gcr/releas
 
 ENV PATH /usr/local/go/bin:/go/bin:/google-cloud-sdk/bin:$PATH
 
+WORKDIR /go/src/github.com/GoogleCloudPlatform/skaffold
+COPY . .
+RUN make install
 
 CMD ["/root/skaffold", "version"]
