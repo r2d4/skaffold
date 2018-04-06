@@ -128,13 +128,20 @@ type Profile struct {
 }
 
 type ArtifactType struct {
-	DockerArtifact *DockerArtifact `yaml:"docker"`
-	BazelArtifact  *BazelArtifact  `yaml:"bazel"`
+	DockerArtifact *DockerArtifact `yaml:"docker,omitempty"`
+	BazelArtifact  *BazelArtifact  `yaml:"bazel,omitempty"`
+	KanikoArtifact *KanikoArtifact `yaml:"kaniko,omitempty"`
 }
 
 type DockerArtifact struct {
 	DockerfilePath string             `yaml:"dockerfilePath,omitempty"`
 	BuildArgs      map[string]*string `yaml:"buildArgs,omitempty"`
+}
+
+type KanikoArtifact struct {
+	GCSBucket      string `yaml:"gcsBucket,omitempty"`
+	DockerfilePath string `yaml:"dockerfilePath,omitempty"`
+	PullSecret     string `yaml:"pullSecret,omitempty"`
 }
 
 type BazelArtifact struct {

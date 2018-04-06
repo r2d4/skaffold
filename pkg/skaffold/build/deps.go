@@ -140,13 +140,13 @@ func init() {
 	DefaultBazelDepResolver = &bazel.BazelDependencyResolver{}
 }
 
-func GetDependenciesForArtifact(artifact *config.Artifact) ([]string, error) {
-	if artifact.DockerArtifact != nil {
-		return DefaultDockerfileDepResolver.GetDependencies(artifact)
+func GetDependenciesForArtifact(a *config.Artifact) ([]string, error) {
+	if a.DockerArtifact != nil || a.KanikoArtifact != nil {
+		return DefaultDockerfileDepResolver.GetDependencies(a)
 	}
-	if artifact.BazelArtifact != nil {
-		return DefaultBazelDepResolver.GetDependencies(artifact)
+	if a.BazelArtifact != nil {
+		return DefaultBazelDepResolver.GetDependencies(a)
 	}
 
-	return nil, fmt.Errorf("undefined artifact type: %+v", artifact.ArtifactType)
+	return nil, fmt.Errorf("undefined artifact type: %+v", a.ArtifactType)
 }

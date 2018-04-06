@@ -30,9 +30,12 @@ import (
 	"github.com/GoogleCloudPlatform/skaffold/pkg/skaffold/config"
 	"github.com/GoogleCloudPlatform/skaffold/pkg/skaffold/constants"
 	"github.com/GoogleCloudPlatform/skaffold/pkg/skaffold/docker"
+	"github.com/GoogleCloudPlatform/skaffold/pkg/skaffold/kubernetes"
 	"github.com/GoogleCloudPlatform/skaffold/pkg/skaffold/util"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // LocalBuilder uses the host docker daemon to build and tag the image
@@ -68,14 +71,126 @@ func NewLocalBuilder(cfg *config.BuildConfig, kubeContext string) (*LocalBuilder
 }
 
 func (l *LocalBuilder) runBuildForArtifact(ctx context.Context, out io.Writer, artifact *config.Artifact) (string, error) {
+	logrus.Debugf("Running build for %+v", artifact)
 	if artifact.DockerArtifact != nil {
 		return l.buildDocker(ctx, out, artifact)
 	}
 	if artifact.BazelArtifact != nil {
 		return l.buildBazel(ctx, out, artifact)
 	}
-
+	if artifact.KanikoArtifact != nil {
+		return l.buildKaniko(ctx, out, artifact)
+	}
 	return "", fmt.Errorf("undefined artifact type: %+v", artifact.ArtifactType)
+}
+
+const kanikoImage = "gcr.io/r2d4minikube/executor:latest"
+
+func (l *LocalBuilder) buildKaniko(ctx context.Context, out io.Writer, artifact *config.Artifact) (string, error) {
+	tarName := fmt.Sprintf("context-%s.tar.gz", util.RandomID())
+	if err := UploadTarToGCS(ctx, artifact.KanikoArtifact.DockerfilePath, artifact.Workspace, artifact.KanikoArtifact.GCSBucket, tarName); err != nil {
+		return "", errors.Wrap(err, "uploading tar to gcs")
+	}
+	client, err := kubernetes.GetClientset()
+	if err != nil {
+		return "", errors.Wrap(err, "")
+	}
+
+	secretData, err := ioutil.ReadFile(artifact.KanikoArtifact.PullSecret)
+	if err != nil {
+		return "", errors.Wrap(err, "reading secret")
+	}
+
+	secret, err := client.CoreV1().Secrets("default").Create(&v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "kaniko-secret",
+			Labels: map[string]string{"kaniko": "kaniko"},
+		},
+		Data: map[string][]byte{
+			"kaniko-secret": secretData,
+		},
+	})
+	if err != nil {
+		return "", errors.Wrap(err, "creating secret")
+	}
+	defer func() {
+		if err := client.CoreV1().Secrets("default").Delete(secret.Name, &metav1.DeleteOptions{}); err != nil {
+			logrus.Fatalf("deleting secret")
+		}
+	}()
+
+	imageList := kubernetes.NewImageList()
+	imageList.AddImage(kanikoImage)
+
+	logger := kubernetes.NewLogAggregator(out, imageList, kubernetes.NewColorPicker([]*config.Artifact{artifact}))
+	if err := logger.Start(ctx, client.CoreV1()); err != nil {
+		return "", errors.Wrap(err, "starting log streamer")
+	}
+
+	p, err := client.CoreV1().Pods("default").Create(&v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "kaniko",
+			Labels: map[string]string{"kaniko": "kaniko"},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:            "kaniko",
+					Image:           kanikoImage, //todo(r2d4)
+					ImagePullPolicy: v1.PullIfNotPresent,
+					Args: []string{
+						fmt.Sprintf("--dockerfile=%s", artifact.KanikoArtifact.DockerfilePath),
+						fmt.Sprintf("--bucket=%s", artifact.KanikoArtifact.GCSBucket),
+						fmt.Sprintf("--context-path=%s", tarName),
+						fmt.Sprintf("--destination=%s:kaniko", artifact.ImageName),
+						fmt.Sprintf("-v=%s", logrus.GetLevel().String()),
+					},
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name:      "kaniko-secret",
+							MountPath: "/secret",
+						},
+					},
+					Env: []v1.EnvVar{
+						{
+							Name:  "GOOGLE_APPLICATION_CREDENTIALS",
+							Value: "/secret/kaniko-secret",
+						},
+					},
+				},
+			},
+			Volumes: []v1.Volume{
+				{
+					Name: "kaniko-secret",
+					VolumeSource: v1.VolumeSource{
+						Secret: &v1.SecretVolumeSource{
+							SecretName: secret.Name,
+						},
+					},
+				},
+			},
+			RestartPolicy: v1.RestartPolicyNever,
+		},
+	})
+
+	if err != nil {
+		return "", errors.Wrap(err, "creating kaniko pod")
+	}
+
+	defer func() {
+		imageList.RemoveImage(kanikoImage)
+		if err := client.CoreV1().Pods("default").Delete(p.Name, &metav1.DeleteOptions{
+			GracePeriodSeconds: new(int64),
+		}); err != nil {
+			logrus.Fatalf("deleting pod: %s", err)
+		}
+	}()
+
+	if err := kubernetes.WaitForPodComplete(client.CoreV1().Pods("default"), p.Name); err != nil {
+		return "", errors.Wrap(err, "waiting for pod to complete")
+	}
+
+	return "", nil
 }
 
 // Build runs a docker build on the host and tags the resulting image with
@@ -164,7 +279,7 @@ func (l *LocalBuilder) buildBazel(ctx context.Context, out io.Writer, a *config.
 func (l *LocalBuilder) buildDocker(ctx context.Context, out io.Writer, a *config.Artifact) (string, error) {
 	initialTag := util.RandomID()
 	err := docker.RunBuild(ctx, l.api, &docker.BuildOptions{
-		ImageName:   initialTag,
+		ImageNames:  []string{initialTag, a.ImageName},
 		Dockerfile:  a.DockerArtifact.DockerfilePath,
 		ContextDir:  a.Workspace,
 		ProgressBuf: out,

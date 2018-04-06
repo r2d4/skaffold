@@ -32,7 +32,7 @@ import (
 )
 
 type BuildOptions struct {
-	ImageName   string
+	ImageNames  []string
 	Dockerfile  string
 	ContextDir  string
 	ProgressBuf io.Writer
@@ -49,7 +49,7 @@ func RunBuild(ctx context.Context, cli DockerAPIClient, opts *BuildOptions) erro
 	}
 
 	imageBuildOpts := types.ImageBuildOptions{
-		Tags:        []string{opts.ImageName},
+		Tags:        opts.ImageNames,
 		Dockerfile:  opts.Dockerfile,
 		BuildArgs:   opts.BuildArgs,
 		AuthConfigs: authConfigs,

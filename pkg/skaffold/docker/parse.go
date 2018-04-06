@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,6 +30,7 @@ import (
 	"sync"
 
 	"github.com/GoogleCloudPlatform/skaffold/pkg/skaffold/config"
+	"github.com/GoogleCloudPlatform/skaffold/pkg/skaffold/constants"
 	"github.com/GoogleCloudPlatform/skaffold/pkg/skaffold/util"
 	"github.com/containers/image/docker"
 	"github.com/containers/image/manifest"
@@ -55,7 +57,32 @@ var RetrieveImage = retrieveImage
 type DockerfileDepResolver struct{}
 
 func (*DockerfileDepResolver) GetDependencies(a *config.Artifact) ([]string, error) {
-	return GetDockerfileDependencies(a.DockerArtifact.DockerfilePath, a.Workspace)
+	// todo r2d4
+	var dockerfilePath string
+	if a.DockerArtifact == nil || a.DockerArtifact.DockerfilePath == "" {
+		dockerfilePath = constants.DefaultDockerfilePath
+	} else {
+		dockerfilePath = a.DockerArtifact.DockerfilePath
+	}
+	dockerfileAbsPath, err := filepath.Abs(filepath.Join(a.Workspace, dockerfilePath))
+	if err != nil {
+		return nil, errors.Wrap(err, "getting absolute path of dockerfile")
+	}
+	f, err := util.Fs.Open(dockerfileAbsPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "opening dockerfile")
+	}
+	defer f.Close()
+	dockerfile, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, errors.Wrap(err, "reading dockerfile")
+	}
+	deps, err := GetDockerfileDependencies(a.Workspace, string(dockerfile))
+	if err != nil {
+		return nil, errors.Wrap(err, "getting dockerfile dependencies")
+	}
+	deps = append(deps, dockerfileAbsPath)
+	return deps, nil
 }
 
 // GetDockerfileDependencies parses a dockerfile and returns the full paths
