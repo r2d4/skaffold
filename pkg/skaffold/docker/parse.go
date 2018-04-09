@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -68,16 +67,7 @@ func (*DockerfileDepResolver) GetDependencies(a *config.Artifact) ([]string, err
 	if err != nil {
 		return nil, errors.Wrap(err, "getting absolute path of dockerfile")
 	}
-	f, err := util.Fs.Open(dockerfileAbsPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "opening dockerfile")
-	}
-	defer f.Close()
-	dockerfile, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, errors.Wrap(err, "reading dockerfile")
-	}
-	deps, err := GetDockerfileDependencies(a.Workspace, string(dockerfile))
+	deps, err := GetDockerfileDependencies(dockerfileAbsPath, a.Workspace)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting dockerfile dependencies")
 	}
@@ -88,10 +78,10 @@ func (*DockerfileDepResolver) GetDependencies(a *config.Artifact) ([]string, err
 // GetDockerfileDependencies parses a dockerfile and returns the full paths
 // of all the source files that the resulting docker image depends on.
 func GetDockerfileDependencies(dockerfilePath, workspace string) ([]string, error) {
-	path := filepath.Join(workspace, dockerfilePath)
-	f, err := util.Fs.Open(path)
+	fmt.Println("workspace", workspace, "dockerfile path", dockerfilePath)
+	f, err := util.Fs.Open(dockerfilePath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "opening dockerfile: %d", path)
+		return nil, errors.Wrapf(err, "opening dockerfile: %s", dockerfilePath)
 	}
 	defer f.Close()
 
@@ -146,8 +136,8 @@ func GetDockerfileDependencies(dockerfilePath, workspace string) ([]string, erro
 	}
 	logrus.Infof("deps %s", expandedDeps)
 
-	if !util.StrSliceContains(expandedDeps, path) {
-		expandedDeps = append(expandedDeps, path)
+	if !util.StrSliceContains(expandedDeps, dockerfilePath) {
+		expandedDeps = append(expandedDeps, dockerfilePath)
 	}
 
 	// Look for .dockerignore.

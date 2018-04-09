@@ -84,7 +84,7 @@ func (l *LocalBuilder) runBuildForArtifact(ctx context.Context, out io.Writer, a
 	return "", fmt.Errorf("undefined artifact type: %+v", artifact.ArtifactType)
 }
 
-const kanikoImage = "gcr.io/r2d4minikube/executor:latest"
+const kanikoImage = "gcr.io/kbuild-project/executor:latest"
 
 func (l *LocalBuilder) buildKaniko(ctx context.Context, out io.Writer, artifact *config.Artifact) (string, error) {
 	tarName := fmt.Sprintf("context-%s.tar.gz", util.RandomID())
@@ -141,7 +141,7 @@ func (l *LocalBuilder) buildKaniko(ctx context.Context, out io.Writer, artifact 
 					Args: []string{
 						fmt.Sprintf("--dockerfile=%s", artifact.KanikoArtifact.DockerfilePath),
 						fmt.Sprintf("--bucket=%s", artifact.KanikoArtifact.GCSBucket),
-						fmt.Sprintf("--context-path=%s", tarName),
+						fmt.Sprintf("--remote-context-path=%s", tarName),
 						fmt.Sprintf("--destination=%s:kaniko", artifact.ImageName),
 						fmt.Sprintf("-v=%s", logrus.GetLevel().String()),
 					},
@@ -187,6 +187,13 @@ func (l *LocalBuilder) buildKaniko(ctx context.Context, out io.Writer, artifact 
 	}()
 
 	if err := kubernetes.WaitForPodComplete(client.CoreV1().Pods("default"), p.Name); err != nil {
+		req := client.CoreV1().Pods("default").GetLogs(p.Name, &v1.PodLogOptions{})
+		rc, err := req.Stream()
+		if err != nil {
+			return "", errors.Wrap(err, "streaming logs from failed pod")
+		}
+		defer rc.Close()
+		io.Copy(out, rc)
 		return "", errors.Wrap(err, "waiting for pod to complete")
 	}
 

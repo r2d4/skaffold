@@ -55,8 +55,7 @@ func NewWatcher(paths []string) (Watcher, error) {
 	for _, p := range paths {
 		logrus.Infof("Added watch for %s", p)
 		if err := w.Add(p); err != nil {
-			w.Close()
-			return nil, errors.Wrapf(err, "adding watch for %s", p)
+			logrus.Warnf("adding watch for %s", p)
 		}
 	}
 
