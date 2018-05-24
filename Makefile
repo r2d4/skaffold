@@ -12,12 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Bump these on release
-VERSION_MAJOR ?= 0
-VERSION_MINOR ?= 6
-VERSION_BUILD ?= 0
-
-VERSION ?= v$(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_BUILD)
+VERSION ?= $(shell git describe --tags)
 
 GOOS ?= $(shell go env GOOS)
 GOARCH = amd64
