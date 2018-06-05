@@ -19,6 +19,7 @@ package deploy
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -286,6 +287,7 @@ func (l *manifestList) replaceImages(builds []build.Build) (manifestList, error)
 			tag: build.Tag,
 		}
 	}
+	fmt.Println("replacements", replacements)
 
 	var updatedManifests manifestList
 

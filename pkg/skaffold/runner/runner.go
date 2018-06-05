@@ -56,7 +56,7 @@ func NewForConfig(opts *config.SkaffoldOptions, cfg *config.SkaffoldConfig) (*Sk
 		return nil, errors.Wrap(err, "getting current cluster context")
 	}
 	logrus.Infof("Using kubectl context: %s", kubeContext)
-
+	fmt.Printf("%+v\n", cfg)
 	builder, err := getBuilder(&cfg.Build, kubeContext)
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing skaffold build config")

@@ -125,9 +125,7 @@ type HelmDeploy struct {
 	Releases []HelmRelease `yaml:"releases,omitempty"`
 }
 
-type KustomizeDeploy struct {
-	Kustomization string `yaml:"kustomization,omitempty"`
-}
+type KustomizeDeploy struct{}
 
 type HelmRelease struct {
 	Name           string            `yaml:"name"`

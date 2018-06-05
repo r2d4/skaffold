@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"io/ioutil"
 	"os/exec"
 
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/build"
+	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/constants"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/schema/v1alpha2"
+	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/util"
 	"github.com/pkg/errors"
 )
 
@@ -24,12 +27,17 @@ func NewKustomizeDeployer(cfg *v1alpha2.DeployConfig, kubeContext string) *Kusto
 }
 
 func (k *KustomizeDeployer) Deploy(ctx context.Context, out io.Writer, builds []build.Build) error {
-	if k.KustomizeDeploy.Kustomization == "" {
-		return errors.New("must specify a kustomization.yaml")
-	}
-	manifests, err := buildManifests(k.KustomizeDeploy.Kustomization)
+	manifests, err := buildManifests(constants.DefaultKustomizationPath)
 	if err != nil {
 		return errors.Wrap(err, "kustomize")
+	}
+	manifestList, err := newManifestList(manifests)
+	if err != nil {
+		return errors.Wrap(err, "getting manifest list")
+	}
+	manifestList, err = manifestList.replaceImages(builds)
+	if err != nil {
+		return errors.Wrap(err, "replacing images")
 	}
 	if err := kubectl(manifests, out, k.kubeContext, "apply", "-f", "-"); err != nil {
 		return errors.Wrap(err, "running kubectl")
@@ -37,8 +45,23 @@ func (k *KustomizeDeployer) Deploy(ctx context.Context, out io.Writer, builds []
 	return nil
 }
 
+func newManifestList(r io.Reader) (manifestList, error) {
+	var manifests manifestList
+	buf, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, errors.Wrap(err, "reading manifests")
+	}
+
+	parts := bytes.Split(buf, []byte("\n---"))
+	for _, part := range parts {
+		manifests = append(manifests, part)
+	}
+
+	return manifests, nil
+}
+
 func (k *KustomizeDeployer) Cleanup(ctx context.Context, out io.Writer) error {
-	manifests, err := buildManifests(k.KustomizeDeploy.Kustomization)
+	manifests, err := buildManifests(constants.DefaultKustomizationPath)
 	if err != nil {
 		return errors.Wrap(err, "kustomize")
 	}
@@ -50,15 +73,14 @@ func (k *KustomizeDeployer) Cleanup(ctx context.Context, out io.Writer) error {
 
 func (k *KustomizeDeployer) Dependencies() ([]string, error) {
 	// TODO(r2d4): parse kustomization yaml and add base and patches as dependencies
-	return []string{k.KustomizeDeploy.Kustomization}, nil
+	return []string{constants.DefaultKustomizationPath}, nil
 }
 
 func buildManifests(kustomization string) (io.Reader, error) {
-	var buf bytes.Buffer
 	cmd := exec.Command("kustomize", "build", kustomization)
-	cmd.Stdout = &buf
-	if err := cmd.Run(); err != nil {
+	out, err := util.DefaultExecCommand.RunCmdOut(cmd)
+	if err != nil {
 		return nil, errors.Wrap(err, "running kustomize build")
 	}
-	return &buf, nil
+	return bytes.NewReader(out), nil
 }
