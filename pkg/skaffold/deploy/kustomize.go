@@ -39,7 +39,7 @@ func (k *KustomizeDeployer) Deploy(ctx context.Context, out io.Writer, builds []
 	if err != nil {
 		return errors.Wrap(err, "replacing images")
 	}
-	if err := kubectl(manifests, out, k.kubeContext, "apply", "-f", "-"); err != nil {
+	if err := kubectl(manifestList.reader(), out, k.kubeContext, "apply", "-f", "-"); err != nil {
 		return errors.Wrap(err, "running kubectl")
 	}
 	return nil

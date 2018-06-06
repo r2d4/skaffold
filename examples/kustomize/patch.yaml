@@ -16,4 +16,7 @@ spec:
     spec:
       containers:
       - name: kustomize-test
-        image: gcr.io/k8s-skaffold/skaffold
+        image: index.docker.io/library/busybox
+        command:
+          - sleep
+          - "3600"
