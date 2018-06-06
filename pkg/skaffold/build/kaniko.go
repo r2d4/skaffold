@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/build/tag"
+	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/constants"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/docker"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/kaniko"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/kubernetes"
@@ -48,28 +49,30 @@ func (k *KanikoBuilder) Build(ctx context.Context, out io.Writer, tagger tag.Tag
 		return nil, errors.Wrap(err, "getting kubernetes client")
 	}
 
-	secretData, err := ioutil.ReadFile(k.KanikoBuild.PullSecret)
-	if err != nil {
-		return nil, errors.Wrap(err, "reading secret")
-	}
-
-	_, err = client.CoreV1().Secrets("default").Create(&v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   "kaniko-secret",
-			Labels: map[string]string{"kaniko": "kaniko"},
-		},
-		Data: map[string][]byte{
-			"kaniko-secret": secretData,
-		},
-	})
-	if err != nil {
-		logrus.Warnf("creating secret: %s", err)
-	}
-	defer func() {
-		if err := client.CoreV1().Secrets("default").Delete("kaniko-secret", &metav1.DeleteOptions{}); err != nil {
-			logrus.Warnf("deleting secret")
+	if k.KanikoBuild.SecretVolumeSource == "" {
+		secretData, err := ioutil.ReadFile(k.KanikoBuild.PullSecret)
+		if err != nil {
+			return nil, errors.Wrap(err, "reading secret")
 		}
-	}()
+
+		_, err = client.CoreV1().Secrets("default").Create(&v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   constants.DefaultKanikoSecretName,
+				Labels: map[string]string{"kaniko": "kaniko"},
+			},
+			Data: map[string][]byte{
+				constants.DefaultKanikoSecretName: secretData,
+			},
+		})
+		if err != nil {
+			logrus.Warnf("creating secret: %s", err)
+		}
+		defer func() {
+			if err := client.CoreV1().Secrets("default").Delete(constants.DefaultKanikoSecretName, &metav1.DeleteOptions{}); err != nil {
+				logrus.Warnf("deleting secret")
+			}
+		}()
+	}
 
 	// TODO(r2d4): parallel builds
 	var builds []Build

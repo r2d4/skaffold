@@ -97,8 +97,12 @@ type GoogleCloudBuild struct {
 // KanikoBuild contains the fields needed to do a on-cluster build using
 // the kaniko image
 type KanikoBuild struct {
-	GCSBucket  string `yaml:"gcsBucket,omitempty"`
-	PullSecret string `yaml:"pullSecret,omitempty"`
+	GCSBucket             string `yaml:"gcsBucket,omitempty"`
+	PullSecret            string `yaml:"pullSecret,omitempty"`
+	SecretVolumeSource    string `yaml:"secretVolumeSource,omitempty"`
+	TarPath               string `yaml:"tarPath,omitempty"`
+	InsecureSkipTLSVerify bool   `yaml:"insecureSkipTLSVerify,omitempty"`
+	OverrideImage         string `yaml:"overrideImage,omitempty"`
 }
 
 // DeployConfig contains all the configuration needed by the deploy steps

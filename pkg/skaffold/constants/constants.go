@@ -38,6 +38,8 @@ const (
 	DefaultDockerForDesktopContext = "docker-for-desktop"
 	GCSBucketSuffix                = "_cloudbuild"
 
+	DefaultKanikoSecretName = "kaniko-secret"
+
 	DefaultKustomizationPath = "."
 
 	// DefaultKanikoImage is v0.1.0

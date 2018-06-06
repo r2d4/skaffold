@@ -54,6 +54,25 @@ func RunKanikoBuild(ctx context.Context, out io.Writer, artifact *v1alpha2.Artif
 		return "", errors.Wrap(err, "starting log streamer")
 	}
 	imageDst := fmt.Sprintf("%s:%s", artifact.ImageName, initialTag)
+
+	args := []string{
+		fmt.Sprintf("--dockerfile=%s", dockerfilePath),
+		fmt.Sprintf("--bucket=%s", cfg.GCSBucket),
+		fmt.Sprintf("--destination=%s:%s", artifact.ImageName, initialTag),
+		fmt.Sprintf("-v=%s", logrus.GetLevel().String()),
+	}
+	if cfg.InsecureSkipTLSVerify {
+		args = append(args, fmt.Sprintf("--insecure-skip-tls-verify=true"))
+	}
+	if cfg.TarPath != "" {
+		args = append(args, fmt.Sprintf("--tarPath=%s", cfg.TarPath))
+	}
+	kanikoSecretName := constants.DefaultKanikoSecretName
+	if cfg.SecretVolumeSource != "" {
+		kanikoSecretName = cfg.SecretVolumeSource
+	}
+	kanikoImageName := constants.DefaultKanikoImage
+	if 
 	p, err := client.CoreV1().Pods("default").Create(&v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   "kaniko",
@@ -65,12 +84,7 @@ func RunKanikoBuild(ctx context.Context, out io.Writer, artifact *v1alpha2.Artif
 					Name:            "kaniko",
 					Image:           constants.DefaultKanikoImage,
 					ImagePullPolicy: v1.PullIfNotPresent,
-					Args: []string{
-						fmt.Sprintf("--dockerfile=%s", dockerfilePath),
-						fmt.Sprintf("--bucket=%s", cfg.GCSBucket),
-						fmt.Sprintf("--destination=%s", imageDst),
-						fmt.Sprintf("-v=%s", logrus.GetLevel().String()),
-					},
+					Args:            args,
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      "kaniko-secret",
@@ -90,7 +104,7 @@ func RunKanikoBuild(ctx context.Context, out io.Writer, artifact *v1alpha2.Artif
 					Name: "kaniko-secret",
 					VolumeSource: v1.VolumeSource{
 						Secret: &v1.SecretVolumeSource{
-							SecretName: "kaniko-secret",
+							SecretName: kanikoSecretName,
 						},
 					},
 				},
