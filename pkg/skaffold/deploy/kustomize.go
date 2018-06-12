@@ -53,7 +53,14 @@ func (k *KustomizeDeployer) Deploy(ctx context.Context, out io.Writer, builds []
 	if err != nil {
 		return nil, errors.Wrap(err, "kustomize")
 	}
-	manifestList, err := newManifestList(manifests)
+	if err := applyManifests(manifests, out, k.kubeContext, builds); err != nil {
+		return errors.Wrap(err, "applying manifests")
+	}
+	return nil, nil
+}
+
+func applyManifests(r io.Reader, out io.Writer, kubeContext string, builds []build.Build) error {
+	manifestList, err := newManifestList(r)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting manifest list")
 	}
@@ -61,8 +68,8 @@ func (k *KustomizeDeployer) Deploy(ctx context.Context, out io.Writer, builds []
 	if err != nil {
 		return nil, errors.Wrap(err, "replacing images")
 	}
-	if err := kubectl(manifestList.reader(), out, k.kubeContext, "apply", "-f", "-"); err != nil {
-		return nil, errors.Wrap(err, "running kubectl")
+	if err := kubectl(manifestList.reader(), out, kubeContext, "apply", "-f", "-"); err != nil {
+		return errors.Wrap(err, "running kubectl")
 	}
 	return parseManifestsForDeploys(manifestList)
 }
