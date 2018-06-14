@@ -73,6 +73,11 @@
 [[projects]]
   name = "github.com/docker/cli"
   packages = [
+    "cli/compose/interpolation",
+    "cli/compose/loader",
+    "cli/compose/schema",
+    "cli/compose/template",
+    "cli/compose/types",
     "cli/config",
     "cli/config/configfile",
     "cli/config/credentials",
@@ -348,6 +353,12 @@
   version = "0.4"
 
 [[projects]]
+  name = "github.com/mattn/go-shellwords"
+  packages = ["."]
+  revision = "02e3cf038dcea8290e44424da473dd12be796a8a"
+  version = "v1.0.3"
+
+[[projects]]
   name = "github.com/matttproud/golang_protobuf_extensions"
   packages = ["pbutil"]
   revision = "c12348ce28de40eed0136aa2b644d0ee0650e56c"
@@ -358,6 +369,12 @@
   name = "github.com/mitchellh/go-homedir"
   packages = ["."]
   revision = "3864e76763d94a6df2f9960b16a20a33da9f9a66"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mitchellh/mapstructure"
+  packages = ["."]
+  revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
 
 [[projects]]
   name = "github.com/moby/buildkit"
@@ -486,6 +503,23 @@
   name = "github.com/xanzy/ssh-agent"
   packages = ["."]
   revision = "ba9c9e33906f58169366275e3450db66139a31a9"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/xeipuuv/gojsonpointer"
+  packages = ["."]
+  revision = "4e3ac2762d5f479393488629ee9370b50873b3a6"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/xeipuuv/gojsonreference"
+  packages = ["."]
+  revision = "bd5ef7bd5415a7ac448318e64f11a24cd21e594b"
+
+[[projects]]
+  name = "github.com/xeipuuv/gojsonschema"
+  packages = ["."]
+  revision = "0c8571ac0ce161a5feb57375a9cdf148c98c0f70"
 
 [[projects]]
   branch = "master"
@@ -912,6 +946,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8b63c6ad271af40b934d6d46ea828015753556c9d9c7f315ceb663c55c5c7b3c"
+  inputs-digest = "685992c98b80bcdf56d830692e82c4b155e396939a7ec913994e9f2d25d3bb4c"
   solver-name = "gps-cdcl"
   solver-version = 1
