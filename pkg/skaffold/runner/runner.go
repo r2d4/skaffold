@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"os"
 
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/build"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/build/tag"
@@ -132,12 +131,7 @@ func getBuilder(cfg *v1alpha2.BuildConfig, kubeContext string) (build.Builder, e
 func getDeployer(cfg *v1alpha2.DeployConfig, kubeContext string, namespace string) (deploy.Deployer, error) {
 	switch {
 	case cfg.KubectlDeploy != nil:
-		// TODO(dgageot): this should be the folder containing skaffold.yaml. Should also be moved elsewhere.
-		cwd, err := os.Getwd()
-		if err != nil {
-			return nil, errors.Wrap(err, "finding current directory")
-		}
-		return deploy.NewKubectlDeployer(cwd, cfg, kubeContext), nil
+		return deploy.NewKubectlDeployer(cfg, kubeContext), nil
 
 	case cfg.HelmDeploy != nil:
 		return deploy.NewHelmDeployer(cfg, kubeContext, namespace), nil
@@ -188,7 +182,7 @@ func (r *SkaffoldRunner) Run(ctx context.Context, out io.Writer, artifacts []*v1
 	if err != nil {
 		return errors.Wrap(err, "deploy step")
 	}
-	label.LabelDeployResults(r.Labels(), dRes)
+	label.ApplyLabelDeployResults(r.Labels(), dRes)
 
 	return nil
 }
@@ -246,7 +240,7 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 		r.builds = mergeWithPreviousBuilds(bRes, r.builds)
 
 		dRes, err := r.Deploy(ctx, out, r.builds)
-		label.LabelDeployResults(r.Labels(), dRes)
+		label.ApplyLabelDeployResults(r.Labels(), dRes)
 		return err
 	}
 
@@ -255,7 +249,7 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 		defer logger.Unmute()
 
 		dRes, err := r.Deploy(ctx, out, r.builds)
-		label.LabelDeployResults(r.Labels(), dRes)
+		label.ApplyLabelDeployResults(r.Labels(), dRes)
 		return err
 	}
 

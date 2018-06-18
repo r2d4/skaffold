@@ -39,7 +39,7 @@ const tries int = 3
 const sleeptime time.Duration = 300 * time.Millisecond
 
 //nolint
-func LabelDeployResults(labels map[string]string, results []deploy.Artifact) {
+func ApplyLabelDeployResults(labels map[string]string, results []deploy.Artifact) {
 	// use the kubectl client to update all k8s objects with a skaffold watermark
 	client, err := kubernetes.Client()
 	if err != nil {

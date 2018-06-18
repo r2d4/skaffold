@@ -17,9 +17,7 @@ limitations under the License.
 package deploy
 
 import (
-	"bufio"
 	"bytes"
-	"context"
 	"io"
 	"io/ioutil"
 	"os/exec"
@@ -38,9 +36,25 @@ import (
 // KubectlDeployer deploys workflows using kubectl CLI.
 type KubectlDeployer struct {
 	*v1alpha2.DeployConfig
+	*kubectlBaseDeployer
 
-	workingDir  string
-	kubeContext string
+	workingDir string
+}
+
+type noOpManifestBuilder struct {
+	manifests       []string
+	remoteManifests []string
+	context         string
+	workingDir      string
+}
+
+func (n *noOpManifestBuilder) build() (io.Reader, error) {
+	manifests, err := readManifests(n.workingDir, n.context, n.manifests, n.remoteManifests)
+	if err != nil {
+		return nil, errors.Wrap(err, "reading manifests")
+	}
+
+	return strings.NewReader(manifests.String()), nil
 }
 
 // NewKubectlDeployer returns a new KubectlDeployer for a DeployConfig filled
@@ -49,99 +63,22 @@ func NewKubectlDeployer(workingDir string, cfg *v1alpha2.DeployConfig, kubeConte
 	return &KubectlDeployer{
 		DeployConfig: cfg,
 		workingDir:   workingDir,
-		kubeContext:  kubeContext,
+		kubectlBaseDeployer: &kubectlBaseDeployer{
+			DeployConfig: cfg,
+			kubeContext:  kubeContext,
+			mb: &noOpManifestBuilder{
+				manifests:       cfg.KubectlDeploy.Manifests,
+				remoteManifests: cfg.KubectlDeploy.RemoteManifests,
+				context:         kubeContext,
+				workingDir:      workingDir,
+			},
+		},
 	}
-}
-
-func (k *KubectlDeployer) Labels() map[string]string {
-	return map[string]string{
-		constants.Labels.Deployer: "kubectl",
-	}
-}
-
-// Deploy templates the provided manifests with a simple `find and replace` and
-// runs `kubectl apply` on those manifests
-func (k *KubectlDeployer) Deploy(ctx context.Context, out io.Writer, builds []build.Artifact) ([]Artifact, error) {
-	manifests, err := k.readManifests()
-	if err != nil {
-		return nil, errors.Wrap(err, "reading manifests")
-	}
-
-	manifests, err = manifests.replaceImages(builds)
-	if err != nil {
-		return nil, errors.Wrap(err, "replacing images in manifests")
-	}
-
-	err = kubectl(manifests.reader(), out, k.kubeContext, "apply", "-f", "-")
-	if err != nil {
-		return nil, errors.Wrap(err, "deploying manifests")
-	}
-
-	return parseManifestsForDeploys(manifests)
-}
-
-// Cleanup deletes what was deployed by calling Deploy.
-func (k *KubectlDeployer) Cleanup(ctx context.Context, out io.Writer) error {
-	manifests, err := k.readManifests()
-	if err != nil {
-		return errors.Wrap(err, "reading manifests")
-	}
-
-	if err := kubectl(manifests.reader(), out, k.kubeContext, "delete", "-f", "-"); err != nil {
-		return errors.Wrap(err, "deleting manifests")
-	}
-
-	return nil
-}
-
-func (k *KubectlDeployer) Dependencies() ([]string, error) {
-	return k.manifestFiles(k.KubectlDeploy.Manifests)
-}
-
-func kubectl(in io.Reader, out io.Writer, kubeContext string, arg ...string) error {
-	args := append([]string{"--context", kubeContext}, arg...)
-
-	cmd := exec.Command("kubectl", args...)
-	cmd.Stdin = in
-	cmd.Stdout = out
-	cmd.Stderr = out
-
-	return util.RunCmd(cmd)
-}
-
-func (k *KubectlDeployer) manifestFiles(manifests []string) ([]string, error) {
-	list, err := util.ExpandPathsGlob(k.workingDir, manifests)
-	if err != nil {
-		return nil, errors.Wrap(err, "expanding kubectl manifest paths")
-	}
-
-	var filteredManifests []string
-	for _, f := range list {
-		if !util.IsSupportedKubernetesFormat(f) {
-			if !util.StrSliceContains(manifests, f) {
-				logrus.Infof("refusing to deploy/delete non {json, yaml} file %s", f)
-				logrus.Info("If you still wish to deploy this file, please specify it directly, outside a glob pattern.")
-				continue
-			}
-		}
-		filteredManifests = append(filteredManifests, f)
-	}
-
-	return filteredManifests, nil
-}
-
-func parseManifestsForDeploys(manifests manifestList) ([]Artifact, error) {
-	results := []Artifact{}
-	for _, manifest := range manifests {
-		b := bufio.NewReader(bytes.NewReader(manifest))
-		results = append(results, parseReleaseInfo("", b)...)
-	}
-	return results, nil
 }
 
 // readManifests reads the manifests to deploy/delete.
-func (k *KubectlDeployer) readManifests() (manifestList, error) {
-	files, err := k.manifestFiles(k.KubectlDeploy.Manifests)
+func readManifests(workingDir, context string, manifestPaths, remoteManifests []string) (manifestList, error) {
+	files, err := manifestFiles(workingDir, manifestPaths)
 	if err != nil {
 		return nil, errors.Wrap(err, "expanding user manifest list")
 	}
@@ -159,8 +96,8 @@ func (k *KubectlDeployer) readManifests() (manifestList, error) {
 		}
 	}
 
-	for _, m := range k.KubectlDeploy.RemoteManifests {
-		manifest, err := k.readRemoteManifest(m)
+	for _, m := range remoteManifests {
+		manifest, err := readRemoteManifest(m, context)
 		if err != nil {
 			return nil, errors.Wrap(err, "get remote manifests")
 		}
@@ -173,7 +110,7 @@ func (k *KubectlDeployer) readManifests() (manifestList, error) {
 	return manifests, nil
 }
 
-func (k *KubectlDeployer) readRemoteManifest(name string) ([]byte, error) {
+func readRemoteManifest(name, kubeContext string) ([]byte, error) {
 	var args []string
 	if parts := strings.Split(name, ":"); len(parts) > 1 {
 		args = append(args, "--namespace", parts[0])
@@ -182,12 +119,54 @@ func (k *KubectlDeployer) readRemoteManifest(name string) ([]byte, error) {
 	args = append(args, "get", name, "-o", "yaml")
 
 	var manifest bytes.Buffer
-	err := kubectl(nil, &manifest, k.kubeContext, args...)
+	err := kubectl(nil, &manifest, kubeContext, args...)
 	if err != nil {
 		return nil, errors.Wrap(err, "getting manifest")
 	}
 
 	return manifest.Bytes(), nil
+}
+
+func (k *KubectlDeployer) Labels() map[string]string {
+	return map[string]string{
+		constants.Labels.Deployer: "kubectl",
+	}
+}
+
+func (k *KubectlDeployer) Dependencies() ([]string, error) {
+	return manifestFiles(k.workingDir, k.KubectlDeploy.Manifests)
+}
+
+func kubectl(in io.Reader, out io.Writer, kubeContext string, arg ...string) error {
+	args := append([]string{"--context", kubeContext}, arg...)
+
+	cmd := exec.Command("kubectl", args...)
+	cmd.Stdin = in
+	cmd.Stdout = out
+	cmd.Stderr = out
+
+	return util.RunCmd(cmd)
+}
+
+func manifestFiles(workingDir string, manifests []string) ([]string, error) {
+	list, err := util.ExpandPathsGlob(workingDir, manifests)
+	if err != nil {
+		return nil, errors.Wrap(err, "expanding kubectl manifest paths")
+	}
+
+	var filteredManifests []string
+	for _, f := range list {
+		if !util.IsSupportedKubernetesFormat(f) {
+			if !util.StrSliceContains(manifests, f) {
+				logrus.Infof("refusing to deploy/delete non {json, yaml} file %s", f)
+				logrus.Info("If you still wish to deploy this file, please specify it directly, outside a glob pattern.")
+				continue
+			}
+		}
+		filteredManifests = append(filteredManifests, f)
+	}
+
+	return filteredManifests, nil
 }
 
 type replacement struct {

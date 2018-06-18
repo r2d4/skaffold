@@ -77,7 +77,7 @@ func runDeploy(out io.Writer, filename string) error {
 	if err != nil {
 		return errors.Wrap(err, "deploy step")
 	}
-	label.LabelDeployResults(r.Labels(), dRes)
+	label.ApplyLabelDeployResults(r.Labels(), dRes)
 
 	return nil
 }

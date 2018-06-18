@@ -1,41 +1,40 @@
+/*
+Copyright 2018 The Skaffold Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package deploy
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"os/exec"
 
-	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/build"
+	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/constants"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/schema/v1alpha2"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/util"
 	"github.com/pkg/errors"
 )
 
 type ComposeDeployer struct {
+	*kubectlBaseDeployer
 	*v1alpha2.DeployConfig
-	kubeContext string
 }
 
-func NewComposeDeployer(cfg *v1alpha2.DeployConfig, kubeContext string) *ComposeDeployer {
-	return &ComposeDeployer{
-		DeployConfig: cfg,
-		kubeContext:  kubeContext,
-	}
-}
+type komposeManifestBuilder struct{}
 
-func (c *ComposeDeployer) Deploy(ctx context.Context, out io.Writer, builds []build.Build) error {
-	manifests, err := buildKomposeManifests()
-	if err != nil {
-		return errors.Wrap(err, "generating kompose manifests")
-	}
-	if err := applyManifests(manifests, out, c.kubeContext, builds); err != nil {
-		return errors.Wrap(err, "applying manifests")
-	}
-	return nil
-}
-
-func buildKomposeManifests() (io.Reader, error) {
+func (k *komposeManifestBuilder) build() (io.Reader, error) {
 	cmd := exec.Command("kompose", "convert", "--stdout")
 	out, err := util.DefaultExecCommand.RunCmdOut(cmd)
 	if err != nil {
@@ -44,15 +43,21 @@ func buildKomposeManifests() (io.Reader, error) {
 	return bytes.NewReader(out), nil
 }
 
-func (c *ComposeDeployer) Cleanup(ctx context.Context, out io.Writer) error {
-	manifests, err := buildKomposeManifests()
-	if err != nil {
-		return errors.Wrap(err, "generating kompose manifests")
+func NewComposeDeployer(cfg *v1alpha2.DeployConfig, kubeContext string) *ComposeDeployer {
+	return &ComposeDeployer{
+		DeployConfig: cfg,
+		kubectlBaseDeployer: &kubectlBaseDeployer{
+			kubeContext:  kubeContext,
+			DeployConfig: cfg,
+			mb:           &komposeManifestBuilder{},
+		},
 	}
-	if err := kubectl(manifests, out, c.kubeContext, "delete", "-f", "-"); err != nil {
-		return errors.Wrap(err, "kubectl delete")
+}
+
+func (c *ComposeDeployer) Labels() map[string]string {
+	return map[string]string{
+		constants.Labels.Deployer: "kompose",
 	}
-	return nil
 }
 
 func (c *ComposeDeployer) Dependencies() ([]string, error) {
