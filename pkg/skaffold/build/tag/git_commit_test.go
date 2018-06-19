@@ -1,3 +1,6 @@
+// +build !windows
+// See: https://github.com/src-d/go-git/issues/378
+
 /*
 Copyright 2018 The Skaffold Authors
 
