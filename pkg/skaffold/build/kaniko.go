@@ -53,6 +53,10 @@ func (k *KanikoBuilder) Labels() map[string]string {
 	}
 }
 
+func (*KanikoBuilder) BuilderName() string {
+	return "Kaniko"
+}
+
 // Build builds a list of artifacts with Kaniko.
 func (k *KanikoBuilder) Build(ctx context.Context, out io.Writer, tagger tag.Tagger, artifacts []*v1alpha2.Artifact) ([]Artifact, error) {
 	teardown, err := k.setupSecret()

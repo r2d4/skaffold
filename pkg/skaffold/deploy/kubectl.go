@@ -208,6 +208,10 @@ func (l *manifestList) String() string {
 	return str
 }
 
+func (*KubectlDeployer) DeployerName() string {
+	return "Kubectl"
+}
+
 func (l *manifestList) reader() io.Reader {
 	return strings.NewReader(l.String())
 }

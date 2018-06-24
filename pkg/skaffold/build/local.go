@@ -75,6 +75,10 @@ func (l *LocalBuilder) Labels() map[string]string {
 	return labels
 }
 
+func (*LocalBuilder) BuilderName() string {
+	return "Local"
+}
+
 func (l *LocalBuilder) runBuildForArtifact(ctx context.Context, out io.Writer, artifact *v1alpha2.Artifact) (string, error) {
 	if artifact.DockerArtifact != nil {
 		return l.buildDocker(ctx, out, artifact)

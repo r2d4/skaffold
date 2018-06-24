@@ -43,6 +43,10 @@ func NewKustomizeDeployer(cfg *v1alpha2.KustomizeDeploy, kubeContext string) *Ku
 	}
 }
 
+func (*KustomizeDeployer) DeployerName() string {
+	return "Kustomize"
+}
+
 func (k *KustomizeDeployer) Labels() map[string]string {
 	return map[string]string{
 		constants.Labels.Deployer: "kustomize",

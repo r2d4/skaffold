@@ -35,6 +35,7 @@ type Artifact struct {
 // the build results to a Kubernetes cluster
 type Deployer interface {
 	Labels() map[string]string
+	DeployerName() string
 
 	// Deploy should ensure that the build results are deployed to the Kubernetes
 	// cluster.

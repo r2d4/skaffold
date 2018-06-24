@@ -81,6 +81,10 @@ func (cb *GoogleCloudBuilder) Labels() map[string]string {
 	}
 }
 
+func (*GoogleCloudBuilder) BuilderName() string {
+	return "GoogleCloudBuilder"
+}
+
 func (cb *GoogleCloudBuilder) Build(ctx context.Context, out io.Writer, tagger tag.Tagger, artifacts []*v1alpha2.Artifact) ([]Artifact, error) {
 	client, err := google.DefaultClient(ctx, cloudbuild.CloudPlatformScope)
 	if err != nil {

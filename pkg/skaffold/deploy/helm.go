@@ -61,6 +61,10 @@ func (h *HelmDeployer) Labels() map[string]string {
 	}
 }
 
+func (*HelmDeployer) DeployerName() string {
+	return "Helm"
+}
+
 func (h *HelmDeployer) Deploy(ctx context.Context, out io.Writer, builds []build.Artifact) ([]Artifact, error) {
 	deployResults := []Artifact{}
 	for _, r := range h.Releases {

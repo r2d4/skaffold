@@ -36,6 +36,7 @@ type Artifact struct {
 // If artifacts is supplied, the builder should only rebuild those artifacts.
 type Builder interface {
 	Labels() map[string]string
+	BuilderName() string
 
 	Build(ctx context.Context, out io.Writer, tagger tag.Tagger, artifacts []*v1alpha2.Artifact) ([]Artifact, error)
 }
