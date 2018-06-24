@@ -42,6 +42,10 @@ func NewDateTimeTagger(format, timezone string) Tagger {
 	}
 }
 
+func (*dateTimeTagger) TaggerName() string {
+	return "DateTime"
+}
+
 func (tagger *dateTimeTagger) Labels() map[string]string {
 	return map[string]string{
 		constants.Labels.TagPolicy: "dateTimeTagger",

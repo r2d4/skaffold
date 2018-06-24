@@ -32,6 +32,10 @@ func (c *CustomTag) Labels() map[string]string {
 	}
 }
 
+func (*CustomTag) TaggerName() string {
+	return "Custom"
+}
+
 // GenerateFullyQualifiedImageName tags an image with the custom tag
 func (c *CustomTag) GenerateFullyQualifiedImageName(workingDir string, opts *Options) (string, error) {
 	if opts == nil {

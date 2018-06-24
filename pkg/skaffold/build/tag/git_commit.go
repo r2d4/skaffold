@@ -46,6 +46,10 @@ func (c *GitCommit) Labels() map[string]string {
 	}
 }
 
+func (*GitCommit) TaggerName() string {
+	return "GitCommit"
+}
+
 // GenerateFullyQualifiedImageName tags an image with the supplied image name and the git commit.
 func (c *GitCommit) GenerateFullyQualifiedImageName(workingDir string, opts *Options) (string, error) {
 	if _, err := exec.LookPath("git"); err == nil {

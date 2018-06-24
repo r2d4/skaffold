@@ -41,6 +41,10 @@ func NewEnvTemplateTagger(t string) (Tagger, error) {
 	}, nil
 }
 
+func (*envTemplateTagger) TaggerName() string {
+	return "EnvTemplate"
+}
+
 func (t *envTemplateTagger) Labels() map[string]string {
 	return map[string]string{
 		constants.Labels.TagPolicy: "envTemplateTagger",

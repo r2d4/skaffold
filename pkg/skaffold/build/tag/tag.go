@@ -19,6 +19,7 @@ package tag
 // Tagger is an interface for tag strategies to be implemented against
 type Tagger interface {
 	Labels() map[string]string
+	TaggerName() string
 
 	GenerateFullyQualifiedImageName(workingDir string, tagOpts *Options) (string, error)
 }
