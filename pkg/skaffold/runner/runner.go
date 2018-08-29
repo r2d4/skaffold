@@ -38,6 +38,9 @@ import (
 	kubectx "github.com/GoogleContainerTools/skaffold/pkg/skaffold/kubernetes/context"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/schema/v1alpha2"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/watch"
+
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -203,6 +206,19 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 	colorPicker := kubernetes.NewColorPicker(artifacts)
 	logger := kubernetes.NewLogAggregator(out, imageList, colorPicker)
 
+	kubeclient, err := kubernetes.Client()
+	if err != nil {
+		return nil, errors.Wrap(err, "getting k8s client")
+	}
+	client := kubeclient.CoreV1()
+	var forever int64 = 3600 * 24 * 365 * 100
+	podWatcher, err := client.Pods("").Watch(meta_v1.ListOptions{
+		IncludeUninitialized: true,
+		TimeoutSeconds:       &forever,
+	})
+
+	portForwarder := kubernetes.NewPortForwarder(out, imageList, podWatcher)
+
 	// Create watcher and register artifacts to build current state of files.
 	changed := changes{}
 	onChange := func() error {
@@ -266,6 +282,10 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 	// Start logs
 	if err := logger.Start(ctx); err != nil {
 		return nil, errors.Wrap(err, "starting logger")
+	}
+
+	if err := portForwarder.Start(ctx); err != nil {
+		return nil, errors.Wrap(err, "starting port-forwarder")
 	}
 
 	return nil, watcher.Run(ctx, PollInterval, onChange)
