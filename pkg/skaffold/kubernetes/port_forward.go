@@ -38,8 +38,11 @@ type PortForwarder struct {
 	podSelector PodSelector
 	podWatcher  watch.Interface
 
-	// forwardedPods is a map of portForwardEntry.key() -> portForwardEntry
+	// forwardedPods is a map of portForwardEntry.key() (string) -> portForwardEntry
 	forwardedPods *sync.Map
+
+	// forwardedPorts is a map of port (int32) -> container name (string)
+	forwardedPorts *sync.Map
 }
 
 type portForwardEntry struct {
@@ -53,10 +56,11 @@ type portForwardEntry struct {
 
 func NewPortForwarder(out io.Writer, podSelector PodSelector, podWatcher watch.Interface) *PortForwarder {
 	return &PortForwarder{
-		output:        out,
-		podSelector:   podSelector,
-		podWatcher:    podWatcher,
-		forwardedPods: &sync.Map{},
+		output:         out,
+		podSelector:    podSelector,
+		podWatcher:     podWatcher,
+		forwardedPods:  &sync.Map{},
+		forwardedPorts: &sync.Map{},
 	}
 }
 
@@ -115,6 +119,14 @@ func (p *PortForwarder) portForwardPod(ctx context.Context, pod *v1.Pod) error {
 	}
 	for _, c := range pod.Spec.Containers {
 		for _, port := range c.Ports {
+			// If the port is already port-forwarded by another container,
+			// continue without port-forwarding
+			currentApp, ok := p.forwardedPorts.Load(port.ContainerPort)
+			if ok && currentApp != c.Name {
+				color.LightYellow.Fprintf(p.output, "Port %d for %s is already in use by container %s\n", port.ContainerPort, c.Name, currentApp)
+				continue
+			}
+
 			entry := &portForwardEntry{
 				resourceVersion: resourceVersion,
 				podName:         pod.Name,
@@ -134,7 +146,7 @@ func (p *PortForwarder) portForwardPod(ctx context.Context, pod *v1.Pod) error {
 				}
 			}
 
-			if err := entry.forward(p.output, p.forwardedPods); err != nil {
+			if err := p.forward(entry); err != nil {
 				return errors.Wrap(err, "port forwarding")
 			}
 		}
@@ -143,16 +155,18 @@ func (p *PortForwarder) portForwardPod(ctx context.Context, pod *v1.Pod) error {
 	return nil
 }
 
-func (p *portForwardEntry) forward(output io.Writer, forwardedPods *sync.Map) error {
-	portNumber := fmt.Sprintf("%d", p.port)
-	color.Default.Fprintln(output, fmt.Sprintf("Port Forwarding %s %d -> %d", p.podName, p.port, p.port))
-	cmd := exec.Command("kubectl", "port-forward", fmt.Sprintf("pod/%s", p.podName), portNumber, portNumber)
-	p.cmd = cmd
+func (p *PortForwarder) forward(pfe *portForwardEntry) error {
+	portNumber := fmt.Sprintf("%d", pfe.port)
+	color.Default.Fprintln(p.output, fmt.Sprintf("Port Forwarding %s %d -> %d", pfe.podName, pfe.port, pfe.port))
+	cmd := exec.Command("kubectl", "port-forward", fmt.Sprintf("pod/%s", pfe.podName), portNumber, portNumber)
+	pfe.cmd = cmd
 
-	forwardedPods.Store(p.key(), p)
+	p.forwardedPods.Store(pfe.key(), pfe)
+	p.forwardedPorts.Store(pfe.port, pfe.containerName)
+
 	if err := util.RunCmd(cmd); err != nil && !IsTerminatedError(err) {
 		fmt.Println("")
-		return errors.Wrapf(err, "port forwarding pod: %s, port: %s", p.podName, portNumber)
+		return errors.Wrapf(err, "port forwarding pod: %s, port: %s", pfe.podName, portNumber)
 	}
 	return nil
 }
