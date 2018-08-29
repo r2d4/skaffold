@@ -150,19 +150,34 @@ func (p *portForwardEntry) forward(output io.Writer, forwardedPods *sync.Map) er
 	p.cmd = cmd
 
 	forwardedPods.Store(p.key(), p)
-	if out, err := util.RunCmdOut(cmd); err != nil {
-		return errors.Wrapf(err, "port forwarding pod: %s, port: %s, err: %s", p.podName, portNumber, string(out))
+	if err := util.RunCmd(cmd); err != nil && !IsTerminatedError(err) {
+		fmt.Println("")
+		return errors.Wrapf(err, "port forwarding pod: %s, port: %s", p.podName, portNumber)
 	}
 	return nil
+}
+
+func IsTerminatedError(err error) bool {
+	exitError, ok := err.(*exec.ExitError)
+	if !ok {
+		return false
+	}
+	ws := exitError.Sys().(syscall.WaitStatus)
+	return ws.Signal() == syscall.SIGTERM
 }
 
 func (p *portForwardEntry) key() string {
 	return fmt.Sprintf("%s-%d", p.containerName, p.port)
 }
 
+func (p *portForwardEntry) String() string {
+	return fmt.Sprintf("%s/%s:%d", p.podName, p.containerName, p.port)
+}
+
 func (p *portForwardEntry) stop() error {
+	logrus.Debugf("Terminating port-forward %s", p.String())
 	if p.cmd == nil {
-		return fmt.Errorf("No port-forward command found for %s/%s:%d", p.podName, p.containerName, p.port)
+		return fmt.Errorf("No port-forward command found for %s", p.String())
 	}
 	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
 		return errors.Wrap(err, "terminating port-forward process")
