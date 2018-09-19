@@ -148,8 +148,15 @@ func readDockerfile(workspace, absDockerfilePath string, buildArgs map[string]*s
 	}
 
 	var dispatchInstructions = func(r *parser.Result) {
+		// Default workdir is root
+		workDir := "/"
 		for _, value := range r.AST.Children {
 			switch value.Value {
+			case command.Workdir:
+				wd, _ := processWorkDir(value, envs)
+				if wd != "" {
+					workDir = wd
+				}
 			case command.Add, command.Copy:
 				files, _ := processCopy(value, envs)
 				if len(files) > 0 {
@@ -385,6 +392,15 @@ func retrieveRemoteConfig(identifier string) (*v1.ConfigFile, error) {
 	return img.ConfigFile()
 }
 
+func processWorkDir(value *parser.Node, envs map[string]string) (string, error) {
+	slex := shell.NewLex('\\')
+	workDir, err := processShellWord(slex, value.Next.Value, envs)
+	if err != nil {
+		return "", errors.Wrap(err, "processing workdir word")
+	}
+	return workDir, nil
+}
+
 func processCopy(value *parser.Node, envs map[string]string) ([]string, error) {
 	var copied []string
 
@@ -396,8 +412,13 @@ func processCopy(value *parser.Node, envs map[string]string) ([]string, error) {
 		}
 		src, err := processShellWord(slex, value.Next.Value, envs)
 		if err != nil {
-			return nil, errors.Wrap(err, "processing word")
+			return nil, errors.Wrap(err, "processing src word")
 		}
+		dst, err := processShellWord(slex, value.Next.Next.Value, envs)
+		if err != nil {
+			return nil, errors.Wrap(err, "processing dst word")
+		}
+		fmt.Println(dst)
 		// If the --from flag is provided, we are dealing with a multi-stage dockerfile
 		// Adding a dependency from a different stage does not imply a source dependency
 		if hasMultiStageFlag(value.Flags) {
