@@ -208,7 +208,7 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 
 	// Create watcher and register artifacts to build current state of files.
 	changed := changes{}
-	onChange := func() error {
+	onChange := func(e watch.WatchEvents) error {
 		hasError := true
 
 		logger.Mute()
@@ -260,7 +260,18 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 
 		if err := watcher.Register(
 			func() ([]string, error) { return dependenciesForArtifact(artifact) },
-			func() { changed.Add(artifact) },
+			func(e watch.WatchEvents) error {
+				// disable rebuild real quick
+				// changed.Add(artifact)
+				copyFiles := append(e.Added, e.Modified...)
+				if err := kubernetes.CopyFilesForImage(artifact.ImageName, copyFiles); err != nil {
+					return errors.Wrap(err, "copying files")
+				}
+				if err := kubernetes.DeleteFilesForImage(artifact.ImageName, e.Deleted); err != nil {
+					return errors.Wrap(err, "deleting files")
+				}
+				return nil
+			},
 		); err != nil {
 			return nil, errors.Wrapf(err, "watching files for artifact %s", artifact.ImageName)
 		}
@@ -269,7 +280,7 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 	// Watch deployment configuration
 	if err := watcher.Register(
 		func() ([]string, error) { return r.Dependencies() },
-		func() { changed.needsRedeploy = true },
+		func(watch.WatchEvents) error { changed.needsRedeploy = true; return nil },
 	); err != nil {
 		return nil, errors.Wrap(err, "watching files for deployer")
 	}
@@ -277,7 +288,7 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 	// Watch Skaffold configuration
 	if err := watcher.Register(
 		func() ([]string, error) { return []string{r.opts.ConfigurationFile}, nil },
-		func() { changed.needsReload = true },
+		func(watch.WatchEvents) error { changed.needsReload = true; return nil },
 	); err != nil {
 		return nil, errors.Wrapf(err, "watching skaffold configuration %s", r.opts.ConfigurationFile)
 	}

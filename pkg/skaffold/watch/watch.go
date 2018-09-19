@@ -26,10 +26,12 @@ import (
 // Factory creates Watcher instances.
 type Factory func() Watcher
 
+type ChangeFn func(WatchEvents) error
+
 // Watcher monitors files changes for multiples components.
 type Watcher interface {
-	Register(deps func() ([]string, error), onChange func()) error
-	Run(ctx context.Context, pollInterval time.Duration, onChange func() error) error
+	Register(deps func() ([]string, error), onChange ChangeFn) error
+	Run(ctx context.Context, pollInterval time.Duration, onChange ChangeFn) error
 }
 
 type watchList []*component
@@ -41,12 +43,12 @@ func NewWatcher() Watcher {
 
 type component struct {
 	deps     func() ([]string, error)
-	onChange func()
+	onChange ChangeFn
 	state    fileMap
 }
 
 // Register adds a new component to the watch list.
-func (w *watchList) Register(deps func() ([]string, error), onChange func()) error {
+func (w *watchList) Register(deps func() ([]string, error), onChange ChangeFn) error {
 	state, err := stat(deps)
 	if err != nil {
 		return errors.Wrap(err, "listing files")
@@ -61,7 +63,7 @@ func (w *watchList) Register(deps func() ([]string, error), onChange func()) err
 }
 
 // Run watches files until the context is cancelled or an error occurs.
-func (w *watchList) Run(ctx context.Context, pollInterval time.Duration, onChange func() error) error {
+func (w *watchList) Run(ctx context.Context, pollInterval time.Duration, onChange ChangeFn) error {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
@@ -71,22 +73,23 @@ func (w *watchList) Run(ctx context.Context, pollInterval time.Duration, onChang
 			return nil
 		case <-ticker.C:
 			changed := 0
-
+			var e *WatchEvents
 			for _, component := range *w {
 				state, err := stat(component.deps)
 				if err != nil {
 					return errors.Wrap(err, "listing files")
 				}
+				e = events(component.state, state)
 
-				if hasChanged(component.state, state) {
-					component.onChange()
+				if e.hasChanged() {
+					component.onChange(*e)
 					component.state = state
 					changed++
 				}
 			}
 
 			if changed > 0 {
-				if err := onChange(); err != nil {
+				if err := onChange(*e); err != nil {
 					return errors.Wrap(err, "calling final callback")
 				}
 			}

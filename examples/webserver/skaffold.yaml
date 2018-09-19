@@ -1,0 +1,9 @@
+apiVersion: skaffold/v1alpha3
+kind: Config
+build:
+  artifacts:
+  - imageName: gcr.io/k8s-skaffold/webserver-example
+deploy:
+  kubectl:
+    manifests:
+    - k8s-*
