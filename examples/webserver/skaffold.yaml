@@ -3,6 +3,8 @@ kind: Config
 build:
   artifacts:
   - imageName: gcr.io/k8s-skaffold/webserver-example
+    sync:
+    - "*.html"
 deploy:
   kubectl:
     manifests:

@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/util"
+
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/bazel"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/build"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/build/gcb"
@@ -261,15 +263,22 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 		if err := watcher.Register(
 			func() ([]string, error) { return dependenciesForArtifact(artifact) },
 			func(e watch.WatchEvents) error {
-				// disable rebuild real quick
-				// changed.Add(artifact)
-				copyFiles := append(e.Added, e.Modified...)
-				if err := kubernetes.CopyFilesForImage(artifact.ImageName, copyFiles); err != nil {
-					return errors.Wrap(err, "copying files")
+				sync, err := shouldSync(artifact, e)
+				if err != nil {
+					return errors.Wrap(err, "checking sync files")
 				}
-				if err := kubernetes.DeleteFilesForImage(artifact.ImageName, e.Deleted); err != nil {
-					return errors.Wrap(err, "deleting files")
+				if sync {
+					if err := kubernetes.CopyFilesForImage(artifact.ImageName, append(e.Added, e.Modified...)); err != nil {
+						return errors.Wrap(err, "copying files")
+					}
+					if err := kubernetes.DeleteFilesForImage(artifact.ImageName, e.Deleted); err != nil {
+						return errors.Wrap(err, "deleting files")
+					}
+					color.Blue.Fprintln(out, "Synced files.")
+				} else {
+					changed.Add(artifact)
 				}
+
 				return nil
 			},
 		); err != nil {
@@ -316,6 +325,26 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 	}
 
 	return nil, watcher.Run(ctx, PollInterval, onChange)
+}
+
+func shouldSync(artifact *v1alpha3.Artifact, e watch.WatchEvents) (bool, error) {
+	syncPaths, err := util.ExpandPathsGlob(artifact.Workspace, artifact.Sync)
+	if err != nil {
+		return false, errors.Wrap(err, "expanding sync paths glob")
+	}
+	// If any changed files are not in the sync list, we require a full rebuild
+	copyFiles := append(e.Added, e.Modified...)
+	for _, f := range copyFiles {
+		if !util.StrSliceContains(syncPaths, f) {
+			return false, nil
+		}
+	}
+	for _, f := range e.Deleted {
+		if !util.StrSliceContains(syncPaths, f) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (r *SkaffoldRunner) shouldWatch(artifact *v1alpha3.Artifact) bool {

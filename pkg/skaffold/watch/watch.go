@@ -73,7 +73,7 @@ func (w *watchList) Run(ctx context.Context, pollInterval time.Duration, onChang
 			return nil
 		case <-ticker.C:
 			changed := 0
-			var e *WatchEvents
+			var e WatchEvents
 			for _, component := range *w {
 				state, err := stat(component.deps)
 				if err != nil {
@@ -82,14 +82,14 @@ func (w *watchList) Run(ctx context.Context, pollInterval time.Duration, onChang
 				e = events(component.state, state)
 
 				if e.hasChanged() {
-					component.onChange(*e)
+					component.onChange(e)
 					component.state = state
 					changed++
 				}
 			}
 
 			if changed > 0 {
-				if err := onChange(*e); err != nil {
+				if err := onChange(e); err != nil {
 					return errors.Wrap(err, "calling final callback")
 				}
 			}

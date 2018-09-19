@@ -50,7 +50,7 @@ type WatchEvents struct {
 	Deleted  []string
 }
 
-func (e *WatchEvents) hasChanged() bool {
+func (e WatchEvents) hasChanged() bool {
 	logrus.Debugf("Watch events:")
 	logrus.Debugf("Added: %s", e.Added)
 	logrus.Debugf("Modified: %s", e.Modified)
@@ -59,8 +59,8 @@ func (e *WatchEvents) hasChanged() bool {
 	return len(e.Added) != 0 || len(e.Modified) != 0 || len(e.Deleted) != 0
 }
 
-func events(prev, curr fileMap) *WatchEvents {
-	e := &WatchEvents{}
+func events(prev, curr fileMap) WatchEvents {
+	e := WatchEvents{}
 	for f, t := range prev {
 		modtime, ok := curr[f]
 		if !ok {
