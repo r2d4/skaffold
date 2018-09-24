@@ -5,4 +5,4 @@ RUN go build -o /app main.go
 FROM alpine:3.7  
 CMD ["./app"]
 COPY --from=builder /app .
-COPY *.html .
+COPY *.html /

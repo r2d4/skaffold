@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/util"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
@@ -20,7 +22,7 @@ func DeleteFilesForImage(image string, f []string) error {
 }
 
 func deleteFileFn(pod v1.Pod, container v1.Container, file string) *exec.Cmd {
-	return exec.Command("kubectl", "exec", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), "-c", container.Name, "rm", "-rf", file)
+	return exec.Command("kubectl", "exec", fmt.Sprintf("%s", pod.Name), "-c", container.Name, "--", "rm", "-rf", file)
 }
 
 func copyFileFn(pod v1.Pod, container v1.Container, file string) *exec.Cmd {
@@ -28,6 +30,7 @@ func copyFileFn(pod v1.Pod, container v1.Container, file string) *exec.Cmd {
 }
 
 func perform(image string, files []string, cmdFn func(v1.Pod, v1.Container, string) *exec.Cmd) error {
+	logrus.Info("Syncing files:", files, "type: ", cmdFn)
 	client, err := Client()
 	if err != nil {
 		return errors.Wrap(err, "getting k8s client")
@@ -42,7 +45,7 @@ func perform(image string, files []string, cmdFn func(v1.Pod, v1.Container, stri
 				for _, f := range files {
 					cmd := cmdFn(p, c, f)
 					if err := util.RunCmd(cmd); err != nil {
-						return errors.Wrap(err, "running kubectl cp")
+						return errors.Wrap(err, "running kubectl")
 					}
 				}
 			}

@@ -51,12 +51,17 @@ type WatchEvents struct {
 }
 
 func (e WatchEvents) hasChanged() bool {
-	logrus.Debugf("Watch events:")
-	logrus.Debugf("Added: %s", e.Added)
-	logrus.Debugf("Modified: %s", e.Modified)
-	logrus.Debugf("Deleted: %s", e.Deleted)
-
-	return len(e.Added) != 0 || len(e.Modified) != 0 || len(e.Deleted) != 0
+	added, deleted, modified := len(e.Added), len(e.Deleted), len(e.Modified)
+	if added > 0 {
+		logrus.Debugf("[watch event] : %s", added)
+	}
+	if deleted > 0 {
+		logrus.Debugf("[watch event] deleted: %s", deleted)
+	}
+	if modified > 0 {
+		logrus.Debugf("[watch event] modified: %s", modified)
+	}
+	return added != 0 || deleted != 0 || modified != 0
 }
 
 func events(prev, curr fileMap) WatchEvents {

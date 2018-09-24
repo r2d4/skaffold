@@ -25,8 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/util"
-
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/bazel"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/build"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/build/gcb"
@@ -328,20 +326,37 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 }
 
 func shouldSync(artifact *v1alpha3.Artifact, e watch.WatchEvents) (bool, error) {
-	syncPaths, err := util.ExpandPathsGlob(artifact.Workspace, artifact.Sync)
-	if err != nil {
-		return false, errors.Wrap(err, "expanding sync paths glob")
-	}
 	// If any changed files are not in the sync list, we require a full rebuild
 	copyFiles := append(e.Added, e.Modified...)
-	for _, f := range copyFiles {
-		if !util.StrSliceContains(syncPaths, f) {
-			return false, nil
-		}
+	isCopySyncable, err := match(artifact.Sync, copyFiles)
+	if err != nil {
+		return false, errors.Wrap(err, "checking sync pattern")
 	}
-	for _, f := range e.Deleted {
-		if !util.StrSliceContains(syncPaths, f) {
-			return false, nil
+	if !isCopySyncable {
+		return false, nil
+	}
+	isDeleteSyncable, err := match(artifact.Sync, e.Deleted)
+	if err != nil {
+		return false, errors.Wrap(err, "checking sync pattern")
+	}
+	if !isDeleteSyncable {
+		return false, nil
+	}
+	return true, nil
+}
+
+// match returns true if the files only match the patterns with filepath.Match
+func match(patterns, files []string) (bool, error) {
+	for _, f := range files {
+		for _, p := range patterns {
+			// Ignore the error from filepath.Match, which is just
+			match, err := filepath.Match(p, f)
+			if err != nil {
+				return false, errors.Wrap(err, "pattern error")
+			}
+			if !match {
+				return false, nil
+			}
 		}
 	}
 	return true, nil
