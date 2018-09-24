@@ -5,9 +5,9 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/util"
 	"github.com/sirupsen/logrus"
 
-	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/util"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,7 +45,7 @@ func perform(image string, files []string, cmdFn func(v1.Pod, v1.Container, stri
 				for _, f := range files {
 					cmd := cmdFn(p, c, f)
 					if err := util.RunCmd(cmd); err != nil {
-						return errors.Wrap(err, "running kubectl")
+						return errors.Wrapf(err, "syncing with kubectl")
 					}
 				}
 			}

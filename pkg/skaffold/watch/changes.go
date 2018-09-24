@@ -53,7 +53,7 @@ type WatchEvents struct {
 func (e WatchEvents) hasChanged() bool {
 	added, deleted, modified := len(e.Added), len(e.Deleted), len(e.Modified)
 	if added > 0 {
-		logrus.Debugf("[watch event] : %s", added)
+		logrus.Debugf("[watch event] added: %s", added)
 	}
 	if deleted > 0 {
 		logrus.Debugf("[watch event] deleted: %s", deleted)

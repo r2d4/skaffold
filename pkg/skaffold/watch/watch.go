@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // Factory creates Watcher instances.
@@ -82,7 +83,9 @@ func (w *watchList) Run(ctx context.Context, pollInterval time.Duration, onChang
 				e = events(component.state, state)
 
 				if e.hasChanged() {
-					component.onChange(e)
+					if err := component.onChange(e); err != nil {
+						logrus.Warnf("on change error: %s")
+					}
 					component.state = state
 					changed++
 				}
