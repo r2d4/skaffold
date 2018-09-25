@@ -263,12 +263,11 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 		if err := watcher.Register(
 			func() ([]string, error) { return dependenciesForArtifact(artifact) },
 			func(e watch.WatchEvents) error {
-				sync, err := shouldSync(artifact, e)
+				sync, err := shouldSync(artifact.Sync, e)
 				if err != nil {
 					return errors.Wrap(err, "checking sync files")
 				}
 				if sync {
-					fmt.Println("Should sync")
 					if err := r.Syncer.CopyFilesForImage(artifact.ImageName, append(e.Added, e.Modified...)); err != nil {
 						return errors.Wrap(err, "copying files")
 					}
@@ -328,24 +327,22 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 	return nil, watcher.Run(ctx, PollInterval, onChange)
 }
 
-func shouldSync(artifact *v1alpha3.Artifact, e watch.WatchEvents) (bool, error) {
+func shouldSync(syncPatterns []string, e watch.WatchEvents) (bool, error) {
 	// If there are no changes, there is nothing to sync
 	if !e.HasChanged() {
 		return false, nil
 	}
 	// If any changed files are not in the sync list, we require a full rebuild
 	copyFiles := append(e.Added, e.Modified...)
-	isCopySyncable, err := match(artifact.Sync, copyFiles)
+	isCopySyncable, err := match(syncPatterns, copyFiles)
 	if err != nil {
 		return false, errors.Wrap(err, "checking sync pattern")
 	}
 	if !isCopySyncable {
 		return false, nil
 	}
-	isDeleteSyncable, err := match(artifact.Sync, e.Deleted)
-	if err != nil {
-		return false, errors.Wrap(err, "checking sync pattern")
-	}
+	// filepath.Match only returns error ErrBadPattern, which will be checked above
+	isDeleteSyncable, _ := match(syncPatterns, e.Deleted)
 	if !isDeleteSyncable {
 		return false, nil
 	}

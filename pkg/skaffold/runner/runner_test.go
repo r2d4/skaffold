@@ -451,3 +451,57 @@ func TestShouldWatch(t *testing.T) {
 		})
 	}
 }
+
+func TestShouldSync(t *testing.T) {
+	var tests = []struct {
+		description  string
+		syncPatterns []string
+		evt          watch.WatchEvents
+		expected     bool
+		shouldErr    bool
+	}{
+		{
+			description:  "match copy",
+			syncPatterns: []string{"*.html"},
+			evt: watch.WatchEvents{
+				Added: []string{"index.html"},
+			},
+			expected: true,
+		},
+		{
+			description:  "not copy syncable",
+			syncPatterns: []string{"*.html"},
+			evt: watch.WatchEvents{
+				Added:   []string{"main.go"},
+				Deleted: []string{"index.html"},
+			},
+			expected: false,
+		},
+		{
+			description:  "not delete syncable",
+			syncPatterns: []string{"*.html"},
+			evt: watch.WatchEvents{
+				Added:   []string{"index.html"},
+				Deleted: []string{"some/other/file"},
+			},
+			expected: false,
+		},
+		{
+			description:  "err bad pattern",
+			syncPatterns: []string{"[*.html"},
+			evt: watch.WatchEvents{
+				Added:   []string{"index.html"},
+				Deleted: []string{"some/other/file"},
+			},
+			shouldErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			actual, err := shouldSync(test.syncPatterns, test.evt)
+			testutil.CheckErrorAndDeepEqual(t, test.shouldErr, err, test.expected, actual)
+		})
+	}
+
+}
