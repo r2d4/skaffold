@@ -54,6 +54,7 @@ type SkaffoldRunner struct {
 	build.Builder
 	deploy.Deployer
 	tag.Tagger
+	kubernetes.Syncer
 
 	opts         *config.SkaffoldOptions
 	watchFactory watch.Factory
@@ -93,6 +94,7 @@ func NewForConfig(opts *config.SkaffoldOptions, cfg *config.SkaffoldConfig) (*Sk
 		Builder:      builder,
 		Deployer:     deployer,
 		Tagger:       tagger,
+		Syncer:       &kubernetes.KubectlSyncer{},
 		opts:         opts,
 		watchFactory: watch.NewWatcher,
 	}, nil
@@ -208,7 +210,7 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 
 	// Create watcher and register artifacts to build current state of files.
 	changed := changes{}
-	onChange := func(e watch.WatchEvents) error {
+	onChange := func() error {
 		hasError := true
 
 		logger.Mute()
@@ -266,10 +268,11 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 					return errors.Wrap(err, "checking sync files")
 				}
 				if sync {
-					if err := kubernetes.CopyFilesForImage(artifact.ImageName, append(e.Added, e.Modified...)); err != nil {
+					fmt.Println("Should sync")
+					if err := r.Syncer.CopyFilesForImage(artifact.ImageName, append(e.Added, e.Modified...)); err != nil {
 						return errors.Wrap(err, "copying files")
 					}
-					if err := kubernetes.DeleteFilesForImage(artifact.ImageName, e.Deleted); err != nil {
+					if err := r.Syncer.DeleteFilesForImage(artifact.ImageName, e.Deleted); err != nil {
 						return errors.Wrap(err, "deleting files")
 					}
 					color.Blue.Fprintln(out, "Synced files.")
@@ -326,6 +329,10 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 }
 
 func shouldSync(artifact *v1alpha3.Artifact, e watch.WatchEvents) (bool, error) {
+	// If there are no changes, there is nothing to sync
+	if !e.HasChanged() {
+		return false, nil
+	}
 	// If any changed files are not in the sync list, we require a full rebuild
 	copyFiles := append(e.Added, e.Modified...)
 	isCopySyncable, err := match(artifact.Sync, copyFiles)

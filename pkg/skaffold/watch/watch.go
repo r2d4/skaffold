@@ -32,7 +32,7 @@ type ChangeFn func(WatchEvents) error
 // Watcher monitors files changes for multiples components.
 type Watcher interface {
 	Register(deps func() ([]string, error), onChange ChangeFn) error
-	Run(ctx context.Context, pollInterval time.Duration, onChange ChangeFn) error
+	Run(ctx context.Context, pollInterval time.Duration, onChange func() error) error
 }
 
 type watchList []*component
@@ -64,7 +64,7 @@ func (w *watchList) Register(deps func() ([]string, error), onChange ChangeFn) e
 }
 
 // Run watches files until the context is cancelled or an error occurs.
-func (w *watchList) Run(ctx context.Context, pollInterval time.Duration, onChange ChangeFn) error {
+func (w *watchList) Run(ctx context.Context, pollInterval time.Duration, onChange func() error) error {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
@@ -82,9 +82,9 @@ func (w *watchList) Run(ctx context.Context, pollInterval time.Duration, onChang
 				}
 				e = events(component.state, state)
 
-				if e.hasChanged() {
+				if e.HasChanged() {
 					if err := component.onChange(e); err != nil {
-						logrus.Warnf("on change error: %s")
+						logrus.Warnf("on change error: %s", err)
 					}
 					component.state = state
 					changed++
@@ -92,7 +92,7 @@ func (w *watchList) Run(ctx context.Context, pollInterval time.Duration, onChang
 			}
 
 			if changed > 0 {
-				if err := onChange(e); err != nil {
+				if err := onChange(); err != nil {
 					return errors.Wrap(err, "calling final callback")
 				}
 			}

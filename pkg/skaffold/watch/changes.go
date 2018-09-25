@@ -50,16 +50,16 @@ type WatchEvents struct {
 	Deleted  []string
 }
 
-func (e WatchEvents) hasChanged() bool {
+func (e WatchEvents) HasChanged() bool {
 	added, deleted, modified := len(e.Added), len(e.Deleted), len(e.Modified)
 	if added > 0 {
-		logrus.Debugf("[watch event] added: %s", added)
+		logrus.Debugf("[watch event] added: %s", e.Added)
 	}
 	if deleted > 0 {
-		logrus.Debugf("[watch event] deleted: %s", deleted)
+		logrus.Debugf("[watch event] deleted: %s", e.Deleted)
 	}
 	if modified > 0 {
-		logrus.Debugf("[watch event] modified: %s", modified)
+		logrus.Debugf("[watch event] modified: %s", e.Modified)
 	}
 	return added != 0 || deleted != 0 || modified != 0
 }

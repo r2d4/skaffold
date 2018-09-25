@@ -109,7 +109,7 @@ func (c *callback) call(e WatchEvents) error {
 	return nil
 }
 
-func (c *callback) callNoErr(e WatchEvents) error {
+func (c *callback) callNoErr() error {
 	c.wg.Done()
 	return nil
 }

@@ -29,11 +29,18 @@ import (
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func CopyFilesForImage(image string, f []string) error {
+type Syncer interface {
+	CopyFilesForImage(image string, f []string) error
+	DeleteFilesForImage(image string, f []string) error
+}
+
+type KubectlSyncer struct{}
+
+func (*KubectlSyncer) CopyFilesForImage(image string, f []string) error {
 	return perform(image, f, copyFileFn)
 }
 
-func DeleteFilesForImage(image string, f []string) error {
+func (*KubectlSyncer) DeleteFilesForImage(image string, f []string) error {
 	return perform(image, f, deleteFileFn)
 }
 

@@ -93,12 +93,20 @@ func (t *TestDeployer) Cleanup(ctx context.Context, out io.Writer) error {
 	return nil
 }
 
+type TestSyncer struct {
+	copyErr, deleteErr error
+}
+
+func (t *TestSyncer) CopyFilesForImage(image string, f []string) error   { return t.copyErr }
+func (t *TestSyncer) DeleteFilesForImage(image string, f []string) error { return t.deleteErr }
+
 func resetClient()                               { kubernetes.Client = kubernetes.GetClientset }
 func fakeGetClient() (clientgo.Interface, error) { return fake.NewSimpleClientset(), nil }
 
 type TestWatcher struct {
 	changedArtifacts [][]int
-	changeCallbacks  []func()
+	changeCallbacks  []watch.ChangeFn
+	watchEvents      watch.WatchEvents
 	err              error
 }
 
@@ -111,7 +119,7 @@ func NewWatcherFactory(err error, changedArtifacts ...[]int) watch.Factory {
 	}
 }
 
-func (t *TestWatcher) Register(deps func() ([]string, error), onChange func()) error {
+func (t *TestWatcher) Register(deps func() ([]string, error), onChange watch.ChangeFn) error {
 	t.changeCallbacks = append(t.changeCallbacks, onChange)
 	return nil
 }
@@ -119,7 +127,7 @@ func (t *TestWatcher) Register(deps func() ([]string, error), onChange func()) e
 func (t *TestWatcher) Run(ctx context.Context, pollInterval time.Duration, onChange func() error) error {
 	for _, artifactIndices := range t.changedArtifacts {
 		for _, artifactIndex := range artifactIndices {
-			t.changeCallbacks[artifactIndex]()
+			t.changeCallbacks[artifactIndex](t.watchEvents)
 		}
 		onChange()
 	}
@@ -336,6 +344,7 @@ func TestDev(t *testing.T) {
 				Deployer:     test.deployer,
 				Tagger:       &tag.ChecksumTagger{},
 				watchFactory: test.watcherFactory,
+				Syncer:       &TestSyncer{},
 			}
 			_, err := runner.Dev(context.Background(), ioutil.Discard, nil)
 
@@ -359,6 +368,7 @@ func TestBuildAndDeployAllArtifacts(t *testing.T) {
 		Builder:  builder,
 		Deployer: deployer,
 		opts:     &config.SkaffoldOptions{},
+		Syncer:   &TestSyncer{},
 	}
 
 	ctx := context.Background()
