@@ -38,6 +38,7 @@ import (
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/kubernetes"
 	kubectx "github.com/GoogleContainerTools/skaffold/pkg/skaffold/kubernetes/context"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/schema/v1alpha3"
+	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/util"
 	"github.com/GoogleContainerTools/skaffold/pkg/skaffold/watch"
 
 	"github.com/pkg/errors"
@@ -269,6 +270,8 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 				}
 				if !sync {
 					changed.Add(artifact)
+				} else {
+					color.Default.Fprintln(out, "Synced:", "copied", append(e.Added, e.Modified...), "deleted", e.Deleted)
 				}
 				return nil
 			},
@@ -338,7 +341,6 @@ func (r *SkaffoldRunner) shouldSync(image string, syncPatterns map[string]string
 	if err := r.Syncer.DeleteFilesForImage(image, toDelete); err != nil {
 		return false, errors.Wrap(err, "deleting files for image")
 	}
-
 	return true, nil
 }
 
@@ -352,6 +354,11 @@ func intersect(syncMap map[string]string, files []string) (map[string]string, er
 			}
 			if !match {
 				return nil, nil
+			}
+			// If the source has special match characters,
+			// the destination must be a directory
+			if util.HasMeta(p) {
+				dst = filepath.Join(dst, f)
 			}
 			ret[f] = dst
 		}

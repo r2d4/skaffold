@@ -4,7 +4,7 @@ build:
   artifacts:
   - imageName: gcr.io/k8s-skaffold/webserver-example
     sync:
-      '*.html': '/static/*'
+      '*.html': '/static'
 deploy:
   kubectl:
     manifests:
