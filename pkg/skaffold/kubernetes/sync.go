@@ -30,30 +30,30 @@ import (
 )
 
 type Syncer interface {
-	CopyFilesForImage(image string, f []string) error
-	DeleteFilesForImage(image string, f []string) error
+	CopyFilesForImage(image string, syncMap map[string]string) error
+	DeleteFilesForImage(image string, syncMap map[string]string) error
 }
 
 type KubectlSyncer struct{}
 
-func (*KubectlSyncer) CopyFilesForImage(image string, f []string) error {
-	return perform(image, f, copyFileFn)
+func (*KubectlSyncer) CopyFilesForImage(image string, syncMap map[string]string) error {
+	return perform(image, syncMap, copyFileFn)
 }
 
-func (*KubectlSyncer) DeleteFilesForImage(image string, f []string) error {
-	return perform(image, f, deleteFileFn)
+func (*KubectlSyncer) DeleteFilesForImage(image string, syncMap map[string]string) error {
+	return perform(image, syncMap, deleteFileFn)
 }
 
-func deleteFileFn(pod v1.Pod, container v1.Container, file string) *exec.Cmd {
-	return exec.Command("kubectl", "exec", fmt.Sprintf("%s", pod.Name), "-c", container.Name, "--", "rm", "-rf", file)
+func deleteFileFn(pod v1.Pod, container v1.Container, src, dst string) *exec.Cmd {
+	return exec.Command("kubectl", "exec", fmt.Sprintf("%s", pod.Name), "-c", container.Name, "--", "rm", "-rf", dst)
 }
 
-func copyFileFn(pod v1.Pod, container v1.Container, file string) *exec.Cmd {
-	return exec.Command("kubectl", "cp", file, fmt.Sprintf("%s/%s:%s", pod.Namespace, pod.Name, file), "-c", container.Name)
+func copyFileFn(pod v1.Pod, container v1.Container, src, dst string) *exec.Cmd {
+	return exec.Command("kubectl", "cp", src, fmt.Sprintf("%s/%s:%s", pod.Namespace, pod.Name, dst), "-c", container.Name)
 }
 
-func perform(image string, files []string, cmdFn func(v1.Pod, v1.Container, string) *exec.Cmd) error {
-	logrus.Info("Syncing files:", files, "type: ", cmdFn)
+func perform(image string, files map[string]string, cmdFn func(v1.Pod, v1.Container, string, string) *exec.Cmd) error {
+	logrus.Info("Syncing files:", files)
 	client, err := Client()
 	if err != nil {
 		return errors.Wrap(err, "getting k8s client")
@@ -65,8 +65,8 @@ func perform(image string, files []string, cmdFn func(v1.Pod, v1.Container, stri
 	for _, p := range pods.Items {
 		for _, c := range p.Spec.Containers {
 			if strings.HasPrefix(c.Image, image) {
-				for _, f := range files {
-					cmd := cmdFn(p, c, f)
+				for src, dst := range files {
+					cmd := cmdFn(p, c, src, dst)
 					if err := util.RunCmd(cmd); err != nil {
 						return errors.Wrapf(err, "syncing with kubectl")
 					}

@@ -263,22 +263,13 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 		if err := watcher.Register(
 			func() ([]string, error) { return dependenciesForArtifact(artifact) },
 			func(e watch.WatchEvents) error {
-				sync, err := shouldSync(artifact.Sync, e)
+				sync, err := r.shouldSync(artifact.ImageName, artifact.Sync, e)
 				if err != nil {
 					return errors.Wrap(err, "checking sync files")
 				}
-				if sync {
-					if err := r.Syncer.CopyFilesForImage(artifact.ImageName, append(e.Added, e.Modified...)); err != nil {
-						return errors.Wrap(err, "copying files")
-					}
-					if err := r.Syncer.DeleteFilesForImage(artifact.ImageName, e.Deleted); err != nil {
-						return errors.Wrap(err, "deleting files")
-					}
-					color.Blue.Fprintln(out, "Synced files.")
-				} else {
+				if !sync {
 					changed.Add(artifact)
 				}
-
 				return nil
 			},
 		); err != nil {
@@ -327,43 +318,45 @@ func (r *SkaffoldRunner) Dev(ctx context.Context, out io.Writer, artifacts []*v1
 	return nil, watcher.Run(ctx, PollInterval, onChange)
 }
 
-func shouldSync(syncPatterns []string, e watch.WatchEvents) (bool, error) {
+func (r *SkaffoldRunner) shouldSync(image string, syncPatterns map[string]string, e watch.WatchEvents) (bool, error) {
 	// If there are no changes, there is nothing to sync
 	if !e.HasChanged() {
 		return false, nil
 	}
-	// If any changed files are not in the sync list, we require a full rebuild
-	copyFiles := append(e.Added, e.Modified...)
-	isCopySyncable, err := match(syncPatterns, copyFiles)
+
+	toCopy, err := intersect(syncPatterns, append(e.Added, e.Modified...))
 	if err != nil {
-		return false, errors.Wrap(err, "checking sync pattern")
+		return false, errors.Wrap(err, "intersecting sync map and added, modified files")
 	}
-	if !isCopySyncable {
-		return false, nil
+	if err := r.Syncer.CopyFilesForImage(image, toCopy); err != nil {
+		return false, errors.Wrap(err, "copying files for image")
 	}
-	// filepath.Match only returns error ErrBadPattern, which will be checked above
-	isDeleteSyncable, _ := match(syncPatterns, e.Deleted)
-	if !isDeleteSyncable {
-		return false, nil
+	toDelete, err := intersect(syncPatterns, e.Deleted)
+	if err != nil {
+		return false, errors.Wrap(err, "intersecting sync map and deleted files")
 	}
+	if err := r.Syncer.DeleteFilesForImage(image, toDelete); err != nil {
+		return false, errors.Wrap(err, "deleting files for image")
+	}
+
 	return true, nil
 }
 
-// match returns true if the files only match the patterns with filepath.Match
-func match(patterns, files []string) (bool, error) {
+func intersect(syncMap map[string]string, files []string) (map[string]string, error) {
+	ret := map[string]string{}
 	for _, f := range files {
-		for _, p := range patterns {
-			// Ignore the error from filepath.Match, which is just
+		for p, dst := range syncMap {
 			match, err := filepath.Match(p, f)
 			if err != nil {
-				return false, errors.Wrap(err, "pattern error")
+				return nil, errors.Wrap(err, "pattern error")
 			}
 			if !match {
-				return false, nil
+				return nil, nil
 			}
+			ret[f] = dst
 		}
 	}
-	return true, nil
+	return ret, nil
 }
 
 func (r *SkaffoldRunner) shouldWatch(artifact *v1alpha3.Artifact) bool {

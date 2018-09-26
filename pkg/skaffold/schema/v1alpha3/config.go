@@ -195,9 +195,9 @@ type HelmConventionConfig struct {
 // Artifact represents items that need to be built, along with the context in which
 // they should be built.
 type Artifact struct {
-	ImageName    string   `yaml:"imageName"`
-	Workspace    string   `yaml:"workspace,omitempty"`
-	Sync         []string `yaml:"sync,omitempty"`
+	ImageName    string            `yaml:"imageName"`
+	Workspace    string            `yaml:"workspace,omitempty"`
+	Sync         map[string]string `yaml:"sync,omitempty"`
 	ArtifactType `yaml:",inline"`
 }
 
